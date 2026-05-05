@@ -40,3 +40,35 @@ exports.register = async ({ nama, no_hp, email, password }) => {
     user: data,
   };
 };
+
+exports.login = async ({ email, password }) => {
+  // ambil user dari DB
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  if (error || !data) {
+    throw new Error("User tidak ditemukan");
+  }
+
+  // compare password
+  const isMatch = await bcrypt.compare(password, data.password);
+
+  if (!isMatch) {
+    throw new Error("Password salah");
+  }
+
+  // generate token
+  const token = jwtService.signToken({
+    id: data.id_user,
+    role: data.jenis_role,
+  });
+
+  return {
+    message: "Login berhasil",
+    token,
+    user: data,
+  };
+};
