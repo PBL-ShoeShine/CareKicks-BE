@@ -10,4 +10,7 @@ router.use("/antrean", require("./antrean/antrean.routes"));
 // Admin inputoff routes
 router.use("/inputoff", require("./inputoff/inputoff_routes"));
 
+// Admin pemindai routes 
+router.use("/pemindai", require("./pemindai/pemindai.routes"));
+
 module.exports = router;
