@@ -1,17 +1,26 @@
 require("dotenv").config();
 
 const express = require("express");
+const multer = require("multer");
 const listEndpoints = require("express-list-endpoints");
 
 const app = express();
 
+// Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Multer configuration for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
 
 // import routes
 const routes = require("./routes");
 
 // register routes
 app.use("/api/v1", routes);
+
+// store upload middleware in app for use in routes
+app.upload = upload;
 
 // start server
 app.listen(process.env.PORT, () => {

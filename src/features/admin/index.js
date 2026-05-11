@@ -10,4 +10,7 @@ router.use("/antrean", require("./antrean/antrean.routes"));
 // Admin inputoff routes
 router.use("/inputoff", require("./inputoff/inputoff_routes"));
 
+// Admin manajemen layanan routes
+router.use("/manajemen_layanan", require("./manajemen_layanan/manajemen_layanan.routes"));
+
 module.exports = router;
