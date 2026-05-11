@@ -15,12 +15,10 @@ CREATE TABLE public.inventory (
   stok_maksimum NUMERIC DEFAULT 0,
   stok_minimum NUMERIC DEFAULT 0,
   satuan VARCHAR, -- ml, Unit, Pcs, dll
+  foto_inven TEXT, -- URL Public dari Supabase Storage
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
--- Indexing untuk performa
-CREATE INDEX idx_inventory_shop ON public.inventory(id_shops);
 ```
 
 ---
@@ -51,6 +49,7 @@ Mengambil daftar bahan baku/stok milik toko.
             "stok_maksimum": 1000,
             "stok_minimum": 200,
             "satuan": "ml",
+            "foto_inven": "https://...supabase.../services/inventory_123.jpg",
             "created_at": "...",
             "updated_at": "..."
         }
@@ -82,17 +81,15 @@ Menambahkan item inventaris baru ke dalam daftar.
 - **URL:** `/`
 - **Method:** `POST`
 - **Auth Required:** Yes (Bearer Token)
-- **Body:**
-```json
-{
-    "nama_item": "Sikat Bulu Kuda",
-    "kategori": "Alat Gosok",
-    "stok_saat_ini": 3,
-    "stok_maksimum": 10,
-    "stok_minimum": 5,
-    "satuan": "Unit"
-}
-```
+- **Body Format:** `multipart/form-data`
+- **Fields:**
+  - `nama_item`: (Required) String
+  - `kategori`: String
+  - `stok_saat_ini`: Number
+  - `stok_maksimum`: Number
+  - `stok_minimum`: Number
+  - `satuan`: String
+  - `foto_inven`: (Optional) File (Image: JPG, PNG, WEBP)
 
 ### 4. Update Item
 Mengubah informasi item inventaris.
@@ -100,12 +97,15 @@ Mengubah informasi item inventaris.
 - **URL:** `/:id`
 - **Method:** `PATCH`
 - **Auth Required:** Yes (Bearer Token)
-- **Body:** (Semua field optional)
-```json
-{
-    "stok_saat_ini": 15
-}
-```
+- **Body Format:** `multipart/form-data`
+- **Fields:** (Semua field optional)
+  - `nama_item`: String
+  - `kategori`: String
+  - `stok_saat_ini`: Number
+  - `stok_maksimum`: Number
+  - `stok_minimum`: Number
+  - `satuan`: String
+  - `foto_inven`: File (Image: JPG, PNG, WEBP)
 
 ### 5. Tambah Stok (Increment)
 Menambahkan jumlah stok ke item yang sudah ada (Fitur "Tambah Stok").
@@ -113,6 +113,7 @@ Menambahkan jumlah stok ke item yang sudah ada (Fitur "Tambah Stok").
 - **URL:** `/:id/add-stock`
 - **Method:** `POST`
 - **Auth Required:** Yes (Bearer Token)
+- **Body Format:** `application/json`
 - **Body:**
 ```json
 {
@@ -121,8 +122,9 @@ Menambahkan jumlah stok ke item yang sudah ada (Fitur "Tambah Stok").
 ```
 
 ### 6. Hapus Item
-Menghapus item dari inventaris.
+Menghapus item dari inventaris. Otomatis menghapus gambar dari storage jika ada.
 
 - **URL:** `/:id`
 - **Method:** `DELETE`
 - **Auth Required:** Yes (Bearer Token)
+

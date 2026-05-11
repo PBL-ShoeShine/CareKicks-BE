@@ -70,6 +70,7 @@ exports.createItem = async (req, res) => {
     const shopId = await getShopIdByUser(userId);
 
     const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan } = req.body;
+    const file = req.file;
 
     if (!nama_item) {
       return res.status(400).json({
@@ -78,13 +79,20 @@ exports.createItem = async (req, res) => {
       });
     }
 
+    // upload foto jika ada
+    let fotoUrl = null;
+    if (file) {
+      fotoUrl = await inventarisService.uploadInventoryImage(file);
+    }
+
     const newItem = await inventarisService.createInventoryItem(shopId, {
       nama_item,
       kategori,
       stok_saat_ini,
       stok_maksimum,
       stok_minimum,
-      satuan
+      satuan,
+      foto_inven: fotoUrl
     });
 
     return res.status(201).json({
@@ -105,9 +113,38 @@ exports.updateItem = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
+    const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan } = req.body;
+    const file = req.file;
     const shopId = await getShopIdByUser(userId);
 
-    const updatedItem = await inventarisService.updateInventoryItem(id, shopId, req.body);
+    let fotoUrl = undefined;
+    if (file) {
+      // ambil gambar lama
+      const { data: existing } = await supabase
+        .from("inventory")
+        .select("foto_inven")
+        .eq("id_inventory", id)
+        .eq("id_shops", shopId)
+        .single();
+
+      // hapus gambar lama
+      if (existing?.foto_inven) {
+        await inventarisService.deleteInventoryImage(existing.foto_inven);
+      }
+
+      // upload gambar baru
+      fotoUrl = await inventarisService.uploadInventoryImage(file);
+    }
+
+    const updatedItem = await inventarisService.updateInventoryItem(id, shopId, {
+      nama_item,
+      kategori,
+      stok_saat_ini,
+      stok_maksimum,
+      stok_minimum,
+      satuan,
+      foto_inven: fotoUrl
+    });
 
     return res.status(200).json({
       success: true,

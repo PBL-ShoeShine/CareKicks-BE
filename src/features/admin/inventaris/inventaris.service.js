@@ -1,6 +1,52 @@
 const supabase = require("../../../core/config/supabase");
 
-const INVENTORY_SELECT = "id_inventory, id_shops, nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan, created_at, updated_at";
+const INVENTORY_SELECT = "id_inventory, id_shops, nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan, foto_inven, created_at, updated_at";
+
+exports.uploadInventoryImage = async (file) => {
+  if (!file) return null;
+
+  try {
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const fileExtension = file.originalname.split(".").pop();
+    const fileName = `inventory_${timestamp}_${randomStr}.${fileExtension}`;
+
+    const { error } = await supabase.storage
+      .from("services")
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    const { data: publicData } = supabase.storage
+      .from("services")
+      .getPublicUrl(fileName);
+
+    return publicData.publicUrl;
+  } catch (error) {
+    console.error("Error uploading inventory image:", error);
+    throw error;
+  }
+};
+
+exports.deleteInventoryImage = async (imageUrl) => {
+  if (!imageUrl) return;
+
+  try {
+    const fileName = imageUrl.split("/").pop();
+    const { error } = await supabase.storage
+      .from("services")
+      .remove([fileName]);
+
+    if (error) {
+      console.error("Error deleting inventory image:", error);
+    }
+  } catch (error) {
+    console.error("Error deleting inventory image:", error);
+  }
+};
 
 exports.getInventoryItems = async (shopId, search = "", category = "") => {
   try {
@@ -53,7 +99,7 @@ exports.getInventorySummary = async (shopId) => {
 
 exports.createInventoryItem = async (shopId, itemData) => {
   try {
-    const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan } = itemData;
+    const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan, foto_inven } = itemData;
 
     const { data, error } = await supabase
       .from("inventory")
@@ -64,7 +110,8 @@ exports.createInventoryItem = async (shopId, itemData) => {
         stok_saat_ini: Number(stok_saat_ini) || 0,
         stok_maksimum: Number(stok_maksimum) || 0,
         stok_minimum: Number(stok_minimum) || 0,
-        satuan
+        satuan,
+        foto_inven
       })
       .select(INVENTORY_SELECT)
       .single();
@@ -92,7 +139,7 @@ exports.updateInventoryItem = async (id, shopId, itemData) => {
       throw new Error("Inventory item not found or unauthorized");
     }
 
-    const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan } = itemData;
+    const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan, foto_inven } = itemData;
 
     const updateData = {
       updated_at: new Date().toISOString()
@@ -104,6 +151,7 @@ exports.updateInventoryItem = async (id, shopId, itemData) => {
     if (stok_maksimum !== undefined) updateData.stok_maksimum = Number(stok_maksimum);
     if (stok_minimum !== undefined) updateData.stok_minimum = Number(stok_minimum);
     if (satuan !== undefined) updateData.satuan = satuan;
+    if (foto_inven !== undefined) updateData.foto_inven = foto_inven;
 
     const { data, error } = await supabase
       .from("inventory")
@@ -124,6 +172,21 @@ exports.updateInventoryItem = async (id, shopId, itemData) => {
 
 exports.deleteInventoryItem = async (id, shopId) => {
   try {
+    const { data: existing, error: fetchError } = await supabase
+      .from("inventory")
+      .select("foto_inven")
+      .eq("id_inventory", id)
+      .eq("id_shops", shopId)
+      .single();
+
+    if (fetchError || !existing) {
+      throw new Error("Inventory item not found or unauthorized");
+    }
+
+    if (existing.foto_inven) {
+      await exports.deleteInventoryImage(existing.foto_inven);
+    }
+
     const { error } = await supabase
       .from("inventory")
       .delete()
@@ -174,3 +237,4 @@ exports.addStock = async (id, shopId, amount) => {
     throw error;
   }
 };
+
