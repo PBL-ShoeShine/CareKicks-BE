@@ -13,4 +13,7 @@ router.use("/inputoff", require("./inputoff/inputoff_routes"));
 // Admin manajemen layanan routes
 router.use("/manajemen_layanan", require("./manajemen_layanan/manajemen_layanan.routes"));
 
+// Admin inventaris routes
+router.use("/inventaris", require("./inventaris/inventaris.routes"));
+
 module.exports = router;
