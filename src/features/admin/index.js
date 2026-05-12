@@ -16,4 +16,7 @@ router.use("/manajemen_layanan", require("./manajemen_layanan/manajemen_layanan.
 // Admin inventaris routes
 router.use("/inventaris", require("./inventaris/inventaris.routes"));
 
+// Admin tracking routes
+router.use("/tracking", require("./tracking"));
+
 module.exports = router;
