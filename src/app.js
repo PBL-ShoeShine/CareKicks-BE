@@ -25,6 +25,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const routes = require("./routes");
 
 // register routes
+//  Semua rute diawali dengan /api/v1
 app.use("/api/v1", routes);
 
 // Swagger docs
