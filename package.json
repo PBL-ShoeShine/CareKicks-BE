@@ -14,10 +14,19 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-list-endpoints": "^7.1.1",
     "jsonwebtoken": "^9.0.3",
     "nodemon": "^3.1.14"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PBL-ShoeShine/CareKicks-BE.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PBL-ShoeShine/CareKicks-BE/issues"
+  },
+  "homepage": "https://github.com/PBL-ShoeShine/CareKicks-BE#readme"
 }
