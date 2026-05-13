@@ -1,6 +1,8 @@
 const supabase = require("../../../core/config/supabase");
 
-exports.getDashboardData = async (idUser) => {
+exports.getDashboardData = async (idUser, options = {}) => {
+  const { status, search, limit = 5 } = options;
+
   // =========================
   // GET SHOP
   // =========================
@@ -70,7 +72,7 @@ exports.getDashboardData = async (idUser) => {
   // =========================
   // AKTIVITAS TERKINI
   // =========================
-  const { data: activities, error: activityError } = await supabase
+  let query = supabase
     .from("detail_orders")
     .select(
       `
@@ -99,9 +101,23 @@ exports.getDashboardData = async (idUser) => {
       )
     `,
     )
-    .eq("orders.id_shops", idShops)
-    .order("id_detail_orders", { ascending: false })
-    .limit(5);
+    .eq("orders.id_shops", idShops);
+
+  if (status && status !== "all") {
+    query = query.eq("orders.status_order", status.toLowerCase());
+  }
+
+  if (search) {
+    query = query.or(`merk.ilike.%${search}%,jenis_sepatu.ilike.%${search}%`);
+  }
+
+  query = query.order("id_detail_orders", { ascending: false });
+
+  if (limit) {
+    query = query.limit(limit);
+  }
+
+  const { data: activities, error: activityError } = await query;
 
   if (activityError) {
     throw activityError;
