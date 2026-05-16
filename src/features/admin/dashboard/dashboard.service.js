@@ -1,7 +1,10 @@
 const supabase = require("../../../core/config/supabase");
 
+const ACTIVE_STATUSES = ["pending", "diproses", "pickup", "washing"];
+const QUEUE_STATUSES = ["pending", "diproses", "washing"];
+
 exports.getDashboardData = async (idUser, options = {}) => {
-  const { status, search, limit = 5 } = options;
+  const { status, search } = options;
 
   // =========================
   // GET SHOP
@@ -25,31 +28,37 @@ exports.getDashboardData = async (idUser, options = {}) => {
     throw shopError;
   }
 
+  if (!shopData || !shopData.shops || shopData.shops.length === 0) {
+    throw new Error("Toko tidak ditemukan untuk user ini");
+  }
+
   const shop = shopData.shops[0];
   const idShops = shop.id_shops;
 
   // =========================
-  // PESANAN AKTIF
+  // AMBIL SEMUA ORDER TOKO
   // =========================
-  const { count: activeOrders } = await supabase
+  const { data: ordersData, error: ordersError } = await supabase
     .from("orders")
-    .select("*", { count: "exact", head: true })
-    .eq("id_shops", idShops)
-    .in("status_order", ["pending", "diproses", "pickup", "washing"]);
+    .select("id_orders, status_order")
+    .eq("id_shops", idShops);
+
+  if (ordersError) {
+    throw ordersError;
+  }
+
+  const activeOrders = (ordersData || []).filter((order) =>
+    ACTIVE_STATUSES.includes(order.status_order?.toLowerCase()),
+  ).length;
+
+  const queueCount = (ordersData || []).filter((order) =>
+    QUEUE_STATUSES.includes(order.status_order?.toLowerCase()),
+  ).length;
 
   // =========================
-  // ANTRIAN CUCI
+  // DEEP CLEANING AKTIF
   // =========================
-  const { count: queueCount } = await supabase
-    .from("orders")
-    .select("*", { count: "exact", head: true })
-    .eq("id_shops", idShops)
-    .in("status_order", ["pending", "diproses", "washing"]);
-
-  // =========================
-  // DEEP CLEANING
-  // =========================
-  const { data: deepCleaningData } = await supabase
+  const { data: deepCleaningData, error: deepCleaningError } = await supabase
     .from("detail_orders")
     .select(
       `
@@ -58,16 +67,25 @@ exports.getDashboardData = async (idUser, options = {}) => {
         nama_layanan
       ),
       orders!inner (
-        id_shops
+        id_shops,
+        status_order
       )
     `,
     )
     .eq("orders.id_shops", idShops);
 
-  const deepCleaning =
-    deepCleaningData?.filter((item) =>
-      item.services?.nama_layanan?.toLowerCase().includes("deep"),
-    ).length || 0;
+  if (deepCleaningError) {
+    throw deepCleaningError;
+  }
+
+  const deepCleaning = (deepCleaningData || []).filter((item) => {
+    const statusOrder = item.orders?.status_order?.toLowerCase();
+    const namaLayanan = item.services?.nama_layanan?.toLowerCase();
+
+    return (
+      ACTIVE_STATUSES.includes(statusOrder) && namaLayanan?.includes("deep")
+    );
+  }).length;
 
   // =========================
   // AKTIVITAS TERKINI
@@ -91,6 +109,7 @@ exports.getDashboardData = async (idUser, options = {}) => {
 
       orders!inner (
         id_orders,
+        kode_order,
         status_order,
         tgl_order,
         id_shops,
@@ -113,38 +132,40 @@ exports.getDashboardData = async (idUser, options = {}) => {
 
   query = query.order("id_detail_orders", { ascending: false });
 
-  if (limit) {
-    query = query.limit(limit);
-  }
-
   const { data: activities, error: activityError } = await query;
 
   if (activityError) {
     throw activityError;
   }
 
+  const filteredActivities = (activities || []).filter((item) =>
+    ACTIVE_STATUSES.includes(item.orders?.status_order?.toLowerCase()),
+  );
+
   return {
     shop: {
       id_shops: shop.id_shops,
       nama_toko: shop.nm_toko,
-      saldo_toko: shop.saldo_toko,
+      saldo_toko: Number(shop.saldo_toko || 0),
     },
 
     summary: {
-      pesanan_aktif: activeOrders || 0,
-      antrean_cuci: queueCount || 0,
+      pesanan_aktif: activeOrders,
+      antrean_cuci: queueCount,
       deep_cleaning: deepCleaning,
     },
 
-    aktivitas_terkini: activities.map((item) => ({
+    aktivitas_terkini: filteredActivities.map((item) => ({
       id_detail_orders: item.id_detail_orders,
-      nama_sepatu: `${item.merk} ${item.jenis_sepatu}`,
+      id_orders: item.orders?.id_orders,
+      kode_order: item.orders?.kode_order,
+      nama_sepatu: `${item.merk || "-"} ${item.jenis_sepatu || "-"}`,
       warna: item.warna,
       layanan: item.services?.nama_layanan,
       customer: item.orders?.customers?.nama,
-      status_order: item.orders?.status_order,
+      status_order: item.orders?.status_order?.toLowerCase(),
       review: item.review,
-      total_harga: item.total_harga,
+      total_harga: Number(item.total_harga || 0),
       foto_sebelum: item.foto_sebelum,
       foto_sesudah: item.foto_sesudah,
       tanggal_order: item.orders?.tgl_order,
