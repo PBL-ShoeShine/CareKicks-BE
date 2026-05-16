@@ -4,7 +4,7 @@ const express = require("express");
 const multer = require("multer");
 const listEndpoints = require("express-list-endpoints");
 const swaggerUi = require("swagger-ui-express");
-const openapi = require("./docs/openapi");
+const openapi = require("./docs/swagger");
 
 const app = express();
 
