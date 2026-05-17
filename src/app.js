@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const listEndpoints = require("express-list-endpoints");
+const swaggerUi = require("swagger-ui-express");
+const openapi = require("./docs/swagger");
 
 const app = express();
 
@@ -18,6 +20,9 @@ const routes = require("./routes");
 
 // register routes
 app.use("/api/v1", routes);
+
+// Swagger docs
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
 // store upload middleware in app for use in routes
 app.upload = upload;
@@ -41,14 +46,14 @@ app.use((err, req, res, next) => {
 
 // start server
 app.listen(process.env.PORT, () => {
-  console.log(`\nServer jalan di http://localhost:${process.env.PORT}`);
+	console.log(`\nServer jalan di http://localhost:${process.env.PORT}`);
 
-  console.log("\n===== LIST API =====");
+	console.log("\n===== LIST API =====");
 
-  console.table(
-    listEndpoints(app).map((route) => ({
-      METHODS: route.methods.join(", "),
-      PATH: route.path,
-    })),
-  );
+	console.table(
+		listEndpoints(app).map((route) => ({
+			METHODS: route.methods.join(", "),
+			PATH: route.path,
+		})),
+	);
 });
