@@ -2,10 +2,14 @@ const dashboardService = require("./dashboard.service");
 
 exports.getDashboardAdmin = async (req, res) => {
   try {
-    // sementara hardcode dulu
-     const idUser = req.user.id;
+    const idUser = req.user.id;
+    const { status, search, limit } = req.query;
 
-    const data = await dashboardService.getDashboardData(idUser);
+    const data = await dashboardService.getDashboardData(idUser, {
+      status,
+      search,
+      limit: limit ? parseInt(limit) : undefined,
+    });
 
     return res.status(200).json({
       success: true,

@@ -12,10 +12,35 @@ exports.createOfflineOrder = async (inputData) => {
     warna,
     catatan,
     metode_bayar,
-    foto_sebelum_url,
+    fotoSebelumFile,
   } = inputData;
 
   try {
+    // Step 0: Upload photo to Supabase storage if provided
+    let foto_sebelum_url = null;
+    if (fotoSebelumFile) {
+      const fileExt = fotoSebelumFile.mimetype.split("/")[1];
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+      const filePath = `services/${fileName}`;
+
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from("services")
+        .upload(filePath, fotoSebelumFile.buffer, {
+          contentType: fotoSebelumFile.mimetype,
+        });
+
+      if (uploadError) {
+        throw new Error(`File upload failed: ${uploadError.message}`);
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("services")
+        .getPublicUrl(filePath);
+
+      foto_sebelum_url = publicUrlData.publicUrl;
+    }
+
     // Step 1: Get user's shop
     const { data: shopData, error: shopError } = await supabase
       .from("shops_admin")
@@ -96,7 +121,7 @@ exports.createOfflineOrder = async (inputData) => {
         qr_image: qr_code.filename,
         link_qr: qr_code.url,
         total_ongkir: 0,
-        status_pembayaran: "pending",
+        status_pembayaran: "paid",
       })
       .select();
 
@@ -125,6 +150,31 @@ exports.createOfflineOrder = async (inputData) => {
 
     if (detailError) {
       throw detailError;
+    }
+
+    // Step 7: Tambahkan saldo toko
+    const { data: shopSaldo, error: saldoFetchError } = await supabase
+      .from("shops")
+      .select("saldo_toko")
+      .eq("id_shops", id_shops)
+      .single();
+
+    if (saldoFetchError) {
+      throw saldoFetchError;
+    }
+
+    const saldoSekarang = Number(shopSaldo.saldo_toko || 0);
+    const saldoBaru = saldoSekarang + Number(total_harga || 0);
+
+    const { error: saldoUpdateError } = await supabase
+      .from("shops")
+      .update({
+        saldo_toko: saldoBaru,
+      })
+      .eq("id_shops", id_shops);
+
+    if (saldoUpdateError) {
+      throw saldoUpdateError;
     }
 
     // Step 7: Create initial tracking log
@@ -168,7 +218,12 @@ exports.createOfflineOrder = async (inputData) => {
       jenis_sepatu,
       total_harga,
       metode_bayar,
+      services: services.map((s) => ({
+        id_services: s.id_services,
+        price: s.price,
+      })),
       qr_code: qr_code.url,
+      foto_sebelum_url,
       status_order: "pending",
       tgl_order: new Date(),
     };
@@ -176,6 +231,39 @@ exports.createOfflineOrder = async (inputData) => {
     console.error("Error creating offline order:", error);
     throw error;
   }
+};
+
+exports.getServices = async (userId) => {
+  const { data: shopAdmin, error: shopAdminError } = await supabase
+    .from("shops_admin")
+    .select("id_shops_admin")
+    .eq("id_user", userId)
+    .maybeSingle();
+
+  if (shopAdminError || !shopAdmin) {
+    throw new Error("Admin toko tidak ditemukan");
+  }
+
+  const { data: shop, error: shopError } = await supabase
+    .from("shops")
+    .select("id_shops")
+    .eq("id_shops_admin", shopAdmin.id_shops_admin)
+    .maybeSingle();
+
+  if (shopError || !shop) {
+    throw new Error("Toko tidak ditemukan untuk admin ini");
+  }
+
+  const { data, error } = await supabase
+    .from("services")
+    .select("*")
+    .eq("id_shops", shop.id_shops)
+    .eq("is_active", true)
+    .order("id_services", { ascending: true });
+
+  if (error) throw error;
+
+  return data || [];
 };
 
 // Generate QR Code (simple implementation - can be enhanced with qr-code library)

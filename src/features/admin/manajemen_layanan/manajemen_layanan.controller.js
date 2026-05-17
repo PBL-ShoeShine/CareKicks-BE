@@ -2,18 +2,31 @@ const manajemenLayananService = require("./manajemen_layanan.service");
 const supabase = require("../../../core/config/supabase");
 
 // helper ambil shop id admin
+// helper ambil shop id dari user admin
 const getShopIdByUser = async (userId) => {
-  const { data, error } = await supabase
+  // cari shops_admin dulu
+  const { data: shopAdmin, error: adminError } = await supabase
     .from("shops_admin")
-    .select("id_shops")
+    .select("id_shops_admin")
     .eq("id_user", userId)
     .single();
 
-  if (error || !data) {
+  if (adminError || !shopAdmin) {
+    throw new Error("Shop admin not found for this user");
+  }
+
+  // cari toko berdasarkan id_shops_admin
+  const { data: shop, error: shopError } = await supabase
+    .from("shops")
+    .select("id_shops")
+    .eq("id_shops_admin", shopAdmin.id_shops_admin)
+    .single();
+
+  if (shopError || !shop) {
     throw new Error("Shop not found for this admin user");
   }
 
-  return data.id_shops;
+  return shop.id_shops;
 };
 
 exports.getServices = async (req, res) => {
