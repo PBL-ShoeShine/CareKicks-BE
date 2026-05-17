@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const listEndpoints = require("express-list-endpoints");
+const swaggerUi = require("swagger-ui-express");
+const openapi = require("./docs/swagger");
 
 const app = express();
 
@@ -25,29 +27,39 @@ const routes = require("./routes");
 // register routes
 app.use("/api/v1", routes);
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error("Global Error Handler:", err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-    error_code: err.code || "INTERNAL_SERVER_ERROR",
-  });
-});
+// Swagger docs
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
 // store upload middleware in app for use in routes
 app.upload = upload;
 
+// 404 Handler
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`,
+  });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("GLOBAL ERROR:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+  });
+});
+
 // start server
 app.listen(process.env.PORT, () => {
-  console.log(`\nServer jalan di http://localhost:${process.env.PORT}`);
+	console.log(`\nServer jalan di http://localhost:${process.env.PORT}`);
 
-  console.log("\n===== LIST API =====");
+	console.log("\n===== LIST API =====");
 
-  console.table(
-    listEndpoints(app).map((route) => ({
-      METHODS: route.methods.join(", "),
-      PATH: route.path,
-    })),
-  );
+	console.table(
+		listEndpoints(app).map((route) => ({
+			METHODS: route.methods.join(", "),
+			PATH: route.path,
+		})),
+	);
 });

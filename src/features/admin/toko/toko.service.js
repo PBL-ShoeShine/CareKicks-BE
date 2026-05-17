@@ -1,0 +1,220 @@
+const supabase = require("../../../core/config/supabase");
+
+const DAY_NAMES = {
+	1: "Senin",
+	2: "Selasa",
+	3: "Rabu",
+	4: "Kamis",
+	5: "Jumat",
+	6: "Sabtu",
+	7: "Minggu",
+};
+
+const getShopByUserId = async (userId) => {
+	const { data, error } = await supabase
+		.from("shops_admin")
+		.select(
+			`
+      id_shops_admin,
+      shops (
+        id_shops,
+        nm_toko,
+        desk_toko,
+        alamat_toko,
+        lat_toko,
+        long_toko,
+        foto_toko,
+        spesialisasi,
+        tgl_berdiri
+      )
+    `,
+		)
+		.eq("id_user", userId)
+		.single();
+
+	if (error || !data || !data.shops || data.shops.length === 0) {
+		throw new Error("Shop not found for this admin user");
+	}
+
+	return data.shops[0];
+};
+
+const SHOP_SELECT =
+	"id_shops, nm_toko, desk_toko, alamat_toko, lat_toko, long_toko, foto_toko, spesialisasi, tgl_berdiri";
+
+const resolveStoragePath = (urlOrPath) => {
+	if (!urlOrPath) return null;
+
+	const publicPrefix = "/storage/v1/object/public/services/";
+	if (urlOrPath.includes(publicPrefix)) {
+		return urlOrPath.split(publicPrefix)[1];
+	}
+
+	if (urlOrPath.startsWith("http")) {
+		return urlOrPath.split("/").pop();
+	}
+
+	return urlOrPath;
+};
+
+exports.uploadShopImage = async (file) => {
+	if (!file) return null;
+
+	const timestamp = Date.now();
+	const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+	const fileExtension = file.originalname.split(".").pop();
+	const fileName = `shop_${timestamp}_${randomStr}.${fileExtension}`;
+	const filePath = `shops/${fileName}`;
+
+	const { error } = await supabase.storage
+		.from("services")
+		.upload(filePath, file.buffer, {
+			contentType: file.mimetype,
+			upsert: false,
+		});
+
+	if (error) throw error;
+
+	const { data: publicData } = supabase.storage
+		.from("services")
+		.getPublicUrl(filePath);
+
+	return publicData.publicUrl;
+};
+
+exports.deleteShopImage = async (imageUrl) => {
+	const path = resolveStoragePath(imageUrl);
+	if (!path) return;
+
+	try {
+		const { error } = await supabase.storage.from("services").remove([path]);
+
+		if (error) {
+			console.error("Error deleting shop image:", error);
+		}
+	} catch (error) {
+		console.error("Error deleting shop image:", error);
+	}
+};
+
+exports.getShopProfile = async (userId) => {
+	const shop = await getShopByUserId(userId);
+
+	const { data: userData, error: userError } = await supabase
+		.from("users")
+		.select("email, no_hp")
+		.eq("id_user", userId)
+		.single();
+
+	if (userError || !userData) {
+		throw userError || new Error("User not found");
+	}
+
+	return {
+		id_shops: shop.id_shops,
+		nm_toko: shop.nm_toko,
+		desk_toko: shop.desk_toko,
+		alamat_toko: shop.alamat_toko,
+		lat_toko: shop.lat_toko,
+		long_toko: shop.long_toko,
+		foto_toko: shop.foto_toko,
+		spesialisasi: shop.spesialisasi,
+		tgl_berdiri: shop.tgl_berdiri,
+		email_toko: userData.email,
+		wa_toko: userData.no_hp,
+	};
+};
+
+exports.getOperatingHours = async (userId) => {
+	const shop = await getShopByUserId(userId);
+
+	const { data, error } = await supabase
+		.from("shop_operating_hours")
+		.select(
+			"id_shop_operating_hours, day_of_week, is_open, open_time, close_time",
+		)
+		.eq("id_shops", shop.id_shops)
+		.order("day_of_week", { ascending: true });
+
+	if (error) throw error;
+
+	return (data || []).map((row) => ({
+		...row,
+		day_name: DAY_NAMES[row.day_of_week] || null,
+	}));
+};
+
+exports.updateShopProfile = async (userId, payload) => {
+	const {
+		nm_toko,
+		desk_toko,
+		alamat_toko,
+		lat_toko,
+		long_toko,
+		spesialisasi,
+		tgl_berdiri,
+		file,
+	} = payload;
+
+	const shop = await getShopByUserId(userId);
+
+	let fotoUrl;
+	if (file) {
+		if (shop.foto_toko) {
+			await exports.deleteShopImage(shop.foto_toko);
+		}
+		fotoUrl = await exports.uploadShopImage(file);
+	}
+
+	const updateData = {};
+
+	if (nm_toko !== undefined) updateData.nm_toko = nm_toko;
+	if (desk_toko !== undefined) updateData.desk_toko = desk_toko;
+	if (alamat_toko !== undefined) updateData.alamat_toko = alamat_toko;
+	if (lat_toko !== undefined) updateData.lat_toko = lat_toko;
+	if (long_toko !== undefined) updateData.long_toko = long_toko;
+	if (spesialisasi !== undefined) updateData.spesialisasi = spesialisasi;
+	if (tgl_berdiri !== undefined) updateData.tgl_berdiri = tgl_berdiri;
+	if (fotoUrl !== undefined) updateData.foto_toko = fotoUrl;
+
+	const { error } = await supabase
+		.from("shops")
+		.update(updateData)
+		.eq("id_shops", shop.id_shops)
+		.select(SHOP_SELECT)
+		.single();
+
+	if (error) throw error;
+
+	return exports.getShopProfile(userId);
+};
+
+exports.updateOperatingHours = async (userId, hours) => {
+	const shop = await getShopByUserId(userId);
+	const now = new Date().toISOString();
+
+	const payload = hours.map((item) => ({
+		id_shops: shop.id_shops,
+		day_of_week: item.day_of_week,
+		is_open: item.is_open,
+		open_time: item.open_time,
+		close_time: item.close_time,
+		updated_at: now,
+	}));
+
+	const { data, error } = await supabase
+		.from("shop_operating_hours")
+		.upsert(payload, { onConflict: "id_shops,day_of_week" })
+		.select(
+			"id_shop_operating_hours, day_of_week, is_open, open_time, close_time",
+		);
+
+	if (error) throw error;
+
+	return (data || [])
+		.sort((a, b) => a.day_of_week - b.day_of_week)
+		.map((row) => ({
+			...row,
+			day_name: DAY_NAMES[row.day_of_week] || null,
+		}));
+};
