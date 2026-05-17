@@ -109,7 +109,7 @@ exports.updateStatus = async (orderId, shopId, payload) => {
 
   if (logError) throw logError;
 
-  // 3. Update detail_orders photo if provided (for washing process)
+  // 3. Update detail_orders photo if provided (for processing phase)
   if (id_detail_orders && payload.foto_url && !is_validation) {
     const updateObj = {};
     if (foto_type === "sebelum") updateObj.foto_sebelum = payload.foto_url;
