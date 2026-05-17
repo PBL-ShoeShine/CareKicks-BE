@@ -19,16 +19,27 @@ const ANTREAN_SELECT = `
 
 // Helper: dapat id_shops dari id_user (lewat shops_admin)
 const getIdShops = async (idUser) => {
-  const { data, error } = await supabase
+  // Langkah 1: dapat id_shops_admin dari id_user
+  const { data: adminData, error: adminError } = await supabase
     .from("shops_admin")
-    .select("id_shops")
+    .select("id_shops_admin")
     .eq("id_user", idUser)
     .single();
 
-  if (error) throw new Error("Gagal mengambil data toko: " + error.message);
-  if (!data?.id_shops) throw new Error("Toko tidak ditemukan untuk user ini");
+  if (adminError) throw new Error("Gagal mengambil data admin: " + adminError.message);
+  if (!adminData) throw new Error("Admin tidak ditemukan");
 
-  return data.id_shops;
+  // Langkah 2: dapat id_shops dari id_shops_admin
+  const { data: shopsData, error: shopsError } = await supabase
+    .from("shops")
+    .select("id_shops")
+    .eq("id_shops_admin", adminData.id_shops_admin)
+    .single();
+
+  if (shopsError) throw new Error("Gagal mengambil data toko: " + shopsError.message);
+  if (!shopsData?.id_shops) throw new Error("Toko tidak ditemukan");
+
+  return shopsData.id_shops;
 };
 
 // Ambil semua antrean, filter by status (opsional)
