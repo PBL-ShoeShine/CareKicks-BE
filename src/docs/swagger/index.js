@@ -27,6 +27,14 @@ const openapi = {
       name: "User Auth",
       description: "User registration and login",
     },
+    {
+      name: "Admin Antrean",
+      description: "Manajemen antrean order",
+    },
+    {
+      name: "Admin Manajemen Staff",
+      description: "Manajemen data staff",
+    },
   ],
   components,
   paths,
