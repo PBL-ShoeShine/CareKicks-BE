@@ -5,10 +5,10 @@ class StaffService {
    * 1. Tambah Staff Baru (ID User Incremental)
    */
   async registerStaff(payload) {
-    const { nama, email, no_hp, id_shops, role } = payload;
+    // Terima password dan status
+    const { nama, email, no_hp, id_shops, role, password, status } = payload;
 
     // STEP 1: Cari id_user terbesar yang ada di tabel staff
-    // Kita ambil 1 data terakhir, urutkan dari yang paling besar
     const { data: lastStaffs, error: fetchError } = await supabase
       .from("staff")
       .select("id_user")
@@ -17,22 +17,20 @@ class StaffService {
 
     if (fetchError) throw fetchError;
 
-    // Jika ada data, ambil id_user-nya lalu tambah 1. 
-    // Jika tabel kosong, kita mulai dari angka 1.
     const nextIdUser = (lastStaffs && lastStaffs.length > 0) 
       ? lastStaffs[0].id_user + 1 
       : 1;
 
-    // STEP 2: Simpan ke staff_profile
+    // STEP 2: Simpan ke staff_profile beserta password dan status
     const { data: profileData, error: profileError } = await supabase
       .from("staff_profile")
-      .insert([{ nama, email, no_hp, id_shops, role }])
+      .insert([{ nama, email, no_hp, id_shops, role, password, status }])
       .select("id_staff_profile")
       .single();
 
     if (profileError) throw profileError;
 
-    // STEP 3: Hubungkan ke tabel staff dengan id_user yang sudah urut
+    // STEP 3: Hubungkan ke tabel staff
     const { data: staffData, error: staffError } = await supabase
       .from("staff")
       .insert([
@@ -46,29 +44,37 @@ class StaffService {
 
     if (staffError) throw staffError;
 
-    return { ...staffData, ...profileData, role };
+    return { ...staffData, ...profileData, role, status };
   }
 
   /**
    * 2. Ambil Semua Staff
    */
   async getAllStaff(search) {
+    // PERHATIAN: Gunakan !inner setelah nama relasi (staff_profile!inner)
+    // Ini memastikan Supabase hanya mengembalikan baris yang cocok dengan kondisi filter di dalamnya.
+    // Tambahkan juga field 'status' di select
     let query = supabase.from("staff").select(`
       id_staff,
       id_user,
       id_staff_profile,
-      staff_profile (
+      staff_profile!inner (
         id_staff_profile,
         nama,
         email,
         no_hp,
         id_shops,
-        role
+        role,
+        status
       )
     `);
 
     if (search) {
-      query = query.ilike("staff_profile.nama", `%${search}%`);
+      // Logika search: mencari di kolom 'nama' ATAU 'role'
+      // Catatan: Jika kolom role di Supabase diset sebagai text[] (array), 
+      // gunakan operator .cs (contains). Jika berupa JSON/String biasa, gunakan .ilike
+      // Asumsi tipe data role adalah text[] atau teks biasa yang dilempar dari front-end.
+      query = query.or(`nama.ilike.%${search}%,role.ilike.%${search}%`, { foreignTable: "staff_profile" });
     }
 
     const { data, error } = await query.order("id_staff", { ascending: false });
@@ -99,7 +105,7 @@ class StaffService {
   async updateStaffProfile(id_profile, updateData) {
     const { data, error } = await supabase
       .from("staff_profile")
-      .update(updateData)
+      .update(updateData) // Akan otomatis mengupdate field apapun yang dikirim (termasuk status/role baru)
       .eq("id_staff_profile", id_profile)
       .select()
       .single();

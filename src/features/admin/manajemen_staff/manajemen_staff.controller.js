@@ -1,10 +1,11 @@
-const ManajemenStaffService = require('./manajemen_staff.service');
+const ManajemenStaffService = require("./manajemen_staff.service");
 
 class ManajemenStaffController {
   // 1. Tambah Staff
   async createStaff(req, res) {
     try {
-      const { nama, email, no_hp, id_shops, role } = req.body;
+      // Tambahkan password di destrukturisasi body
+      const { nama, email, no_hp, id_shops, role, password } = req.body;
 
       const result = await ManajemenStaffService.registerStaff({
         nama,
@@ -12,6 +13,8 @@ class ManajemenStaffController {
         no_hp,
         id_shops,
         role,
+        password, // Kirim ke service
+        status: "AKTIF", // Default status saat pertama kali didaftarkan
       });
 
       res.status(201).json({ success: true, data: result });
@@ -38,7 +41,9 @@ class ManajemenStaffController {
       const result = await ManajemenStaffService.getStaffById(req.params.id);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
-      res.status(404).json({ success: false, message: 'Staff tidak ditemukan' });
+      res
+        .status(404)
+        .json({ success: false, message: "Staff tidak ditemukan" });
     }
   }
 
@@ -46,13 +51,16 @@ class ManajemenStaffController {
   async updateStaffStatus(req, res) {
     try {
       const { id } = req.params;
-      const updateData = req.body;
+      const updateData = req.body; // Bisa menerima update status, nama, atau role
 
-      const result = await ManajemenStaffService.updateStaffProfile(id, updateData);
+      const result = await ManajemenStaffService.updateStaffProfile(
+        id,
+        updateData,
+      );
 
       res.status(200).json({
         success: true,
-        message: 'Berhasil update data staff',
+        message: "Berhasil update data staff",
         data: result,
       });
     } catch (error) {
@@ -68,7 +76,7 @@ class ManajemenStaffController {
 
       res.status(200).json({
         success: true,
-        message: 'Staff berhasil dihapus',
+        message: "Staff berhasil dihapus",
       });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
