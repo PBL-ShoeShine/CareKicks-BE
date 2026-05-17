@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
+// Admin profile routes
+router.use("/profile", require("./profile/profile.routes"));
+
 // Admin dashboard routes
 router.use("/dashboard", require("./dashboard"));
 

@@ -27,6 +27,23 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapi));
 // store upload middleware in app for use in routes
 app.upload = upload;
 
+// 404 Handler
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`,
+  });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("GLOBAL ERROR:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+  });
+});
+
 // start server
 app.listen(process.env.PORT, () => {
 	console.log(`\nServer jalan di http://localhost:${process.env.PORT}`);

@@ -1,36 +1,40 @@
 # Quick Reference - Offline Order API
 
 ## Endpoint
+
 ```
 POST /api/v1/admin/inputoff
 ```
 
 ## Headers Required
+
 ```
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 ```
 
 ## Minimum Valid Request
+
 ```json
 {
   "nama_customer": "John Doe",
   "nomor_telepon": "081234567890",
   "jenis_sepatu": "Sneakers",
-  "services": [{"id_services": 1, "price": 30000}],
+  "services": [{ "id_services": 1, "price": 30000 }],
   "metode_bayar": "tunai"
 }
 ```
 
 ## Complete Request Example
+
 ```json
 {
   "nama_customer": "Ahmad Suryanto",
   "nomor_telepon": "081234567890",
   "jenis_sepatu": "Sneakers",
   "services": [
-    {"id_services": 1, "price": 30000},
-    {"id_services": 4, "price": 50000}
+    { "id_services": 1, "price": 30000 },
+    { "id_services": 4, "price": 50000 }
   ],
   "merk": "Nike",
   "warna": "Putih",
@@ -41,6 +45,7 @@ Content-Type: application/json
 ```
 
 ## Response (201 Created)
+
 ```json
 {
   "success": true,
@@ -62,23 +67,24 @@ Content-Type: application/json
 
 ## Field Requirements
 
-| Field | Type | Required | Valid Values | Notes |
-|-------|------|----------|--------------|-------|
-| nama_customer | string | ✓ | Any | Customer full name |
-| nomor_telepon | string | ✓ | Any | 08xx or +62xx format |
-| jenis_sepatu | string | ✓ | Sneakers, Leather, Canvas | Shoe type |
-| services | array | ✓ | Array of objects | Min 1 service |
-| services[].id_services | number | ✓ | Any | Must exist in DB |
-| services[].price | number | ✓ | > 0 | In IDR (Rupiah) |
-| merk | string | ✗ | Any | Brand name |
-| warna | string | ✗ | Any | Color |
-| catatan | string | ✗ | Any | Notes/comments |
-| metode_bayar | string | ✓ | tunai, qris | Payment method |
-| foto_sebelum_url | string | ✗ | Any URL | Initial photo |
+| Field                  | Type   | Required | Valid Values              | Notes                |
+| ---------------------- | ------ | -------- | ------------------------- | -------------------- |
+| nama_customer          | string | ✓        | Any                       | Customer full name   |
+| nomor_telepon          | string | ✓        | Any                       | 08xx or +62xx format |
+| jenis_sepatu           | string | ✓        | Sneakers, Leather, Canvas | Shoe type            |
+| services               | array  | ✓        | Array of objects          | Min 1 service        |
+| services[].id_services | number | ✓        | Any                       | Must exist in DB     |
+| services[].price       | number | ✓        | > 0                       | In IDR (Rupiah)      |
+| merk                   | string | ✗        | Any                       | Brand name           |
+| warna                  | string | ✗        | Any                       | Color                |
+| catatan                | string | ✗        | Any                       | Notes/comments       |
+| metode_bayar           | string | ✓        | tunai, qris               | Payment method       |
+| foto_sebelum_url       | string | ✗        | Any URL                   | Initial photo        |
 
 ## Error Examples
 
 ### Missing Required Field (400)
+
 ```json
 {
   "success": false,
@@ -87,6 +93,7 @@ Content-Type: application/json
 ```
 
 ### Invalid Payment Method (400)
+
 ```json
 {
   "success": false,
@@ -95,6 +102,7 @@ Content-Type: application/json
 ```
 
 ### Invalid Shoe Type (400)
+
 ```json
 {
   "success": false,
@@ -103,6 +111,7 @@ Content-Type: application/json
 ```
 
 ### No Authorization (401)
+
 ```json
 {
   "success": false,
@@ -112,6 +121,7 @@ Content-Type: application/json
 ```
 
 ### Server Error (500)
+
 ```json
 {
   "success": false,
@@ -122,6 +132,7 @@ Content-Type: application/json
 ## cURL Examples
 
 ### Tunai Payment
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/admin/inputoff \
   -H "Content-Type: application/json" \
@@ -139,6 +150,7 @@ curl -X POST http://localhost:3000/api/v1/admin/inputoff \
 ```
 
 ### QRIS Payment (Multiple Services)
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/admin/inputoff \
   -H "Content-Type: application/json" \
@@ -182,7 +194,7 @@ curl -X POST http://localhost:3000/api/v1/admin/inputoff \
 ✅ **detail_orders** - Service detail records created  
 ✅ **customers** - New customer created (if not exists)  
 ✅ **tracking_logs** - Initial tracking entry created  
-✅ **notification** - Admin notification created  
+✅ **notification** - Admin notification created
 
 ## Business Logic
 
