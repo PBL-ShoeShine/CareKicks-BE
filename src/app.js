@@ -10,6 +10,12 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
 // Multer configuration for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -18,6 +24,16 @@ const routes = require("./routes");
 
 // register routes
 app.use("/api/v1", routes);
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("Global Error Handler:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+    error_code: err.code || "INTERNAL_SERVER_ERROR",
+  });
+});
 
 // store upload middleware in app for use in routes
 app.upload = upload;
