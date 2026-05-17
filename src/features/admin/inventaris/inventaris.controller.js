@@ -5,15 +5,15 @@ const supabase = require("../../../core/config/supabase");
 const getShopIdByUser = async (userId) => {
   const { data, error } = await supabase
     .from("shops_admin")
-    .select("id_shops")
+    .select("id_shops_admin, shops(id_shops)")
     .eq("id_user", userId)
     .single();
 
-  if (error || !data) {
+  if (error || !data || !data.shops || data.shops.length === 0) {
     throw new Error("Shop not found for this admin user");
   }
 
-  return data.id_shops;
+  return data.shops[0].id_shops;
 };
 
 exports.getInventory = async (req, res) => {

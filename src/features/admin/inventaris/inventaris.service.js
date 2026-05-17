@@ -98,26 +98,34 @@ exports.getInventorySummary = async (shopId) => {
 };
 
 exports.createInventoryItem = async (shopId, itemData) => {
+  console.log("createInventoryItem called with:", { shopId, ...itemData });
   try {
     const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan, foto_inven } = itemData;
 
+    const insertData = {
+      id_shops: shopId,
+      nama_item,
+      kategori,
+      stok_saat_ini: Number(stok_saat_ini) || 0,
+      stok_maksimum: Number(stok_maksimum) || 0,
+      stok_minimum: Number(stok_minimum) || 0,
+      satuan,
+      foto_inven
+    };
+    console.log("Attempting to insert into Supabase:", insertData);
+
     const { data, error } = await supabase
       .from("inventory")
-      .insert({
-        id_shops: shopId,
-        nama_item,
-        kategori,
-        stok_saat_ini: Number(stok_saat_ini) || 0,
-        stok_maksimum: Number(stok_maksimum) || 0,
-        stok_minimum: Number(stok_minimum) || 0,
-        satuan,
-        foto_inven
-      })
+      .insert(insertData)
       .select(INVENTORY_SELECT)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase Insert Error:", error);
+      throw error;
+    }
 
+    console.log("Insert successful, data:", data);
     return data;
   } catch (error) {
     console.error("Error in createInventoryItem:", error);
