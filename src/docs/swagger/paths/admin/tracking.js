@@ -31,7 +31,7 @@ module.exports = {
                   {
                     id_orders: 101,
                     kode_order: "ORD20260516ABCD",
-                    status_order: "washing",
+                    status_order: "diproses",
                     tgl_order: "2026-05-16T08:15:30.000Z",
                     customers: { nama: "Budi" },
                     detail_orders: [
@@ -97,7 +97,7 @@ module.exports = {
                     id_shops: 2,
                     id_staff: 5,
                     tgl_order: "2026-05-16T08:15:30.000Z",
-                    status_order: "washing",
+                    status_order: "diproses",
                     metode_order: "offline",
                     metode_bayar: "cash",
                     upload_bkt_byr: null,
@@ -148,7 +148,7 @@ module.exports = {
                   tracking_logs: [
                     {
                       id_tracking_logs: 9001,
-                      status: "washing",
+                      status: "diproses",
                       id_staff: 5,
                       id_orders: 101,
                       waktu: "2026-05-16T09:00:00.000Z",
@@ -213,7 +213,7 @@ module.exports = {
                 foto_type: {
                   type: "string",
                   enum: ["sebelum", "sesudah"],
-                  description: "Use 'sebelum' or 'sesudah' for washing photos.",
+                  description: "Use 'sebelum' or 'sesudah' for processing photos.",
                 },
                 is_validation: {
                   type: "boolean",
@@ -228,7 +228,7 @@ module.exports = {
               },
             },
             example: {
-              status: "washing",
+              status: "diproses",
               keterangan: "Sedang dicuci",
               latitude: -6.2,
               longitude: 106.8,
@@ -257,7 +257,7 @@ module.exports = {
                   id_shops: 2,
                   id_staff: 5,
                   tgl_order: "2026-05-16T08:15:30.000Z",
-                  status_order: "washing",
+                  status_order: "diproses",
                   metode_order: "offline",
                   metode_bayar: "cash",
                   upload_bkt_byr: null,

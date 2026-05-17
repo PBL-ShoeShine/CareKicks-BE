@@ -1,7 +1,8 @@
 const supabase = require("../../../core/config/supabase");
 
-const ACTIVE_STATUSES = ["pending", "diproses", "pickup", "washing"];
-const QUEUE_STATUSES = ["pending", "diproses", "washing"];
+const ORDER_STATUSES = ["pending", "diproses", "selesai"];
+const QUEUE_STATUSES = ["pending", "diproses"];
+const ACTIVITY_STATUSES = ["pending", "diproses", "selesai"];
 
 exports.getDashboardData = async (idUser, options = {}) => {
   const { status, search } = options;
@@ -32,7 +33,9 @@ exports.getDashboardData = async (idUser, options = {}) => {
     throw new Error("Toko tidak ditemukan untuk user ini");
   }
 
-  const shop = shopData.shops[0];
+  const shop = Array.isArray(shopData.shops)
+    ? shopData.shops[0]
+    : shopData.shops;
   const idShops = shop.id_shops;
 
   // =========================
@@ -47,10 +50,12 @@ exports.getDashboardData = async (idUser, options = {}) => {
     throw ordersError;
   }
 
-  const activeOrders = (ordersData || []).filter((order) =>
-    ACTIVE_STATUSES.includes(order.status_order?.toLowerCase()),
+  // Jumlah Pesanan: pending + diproses + selesai
+  const totalOrders = (ordersData || []).filter((order) =>
+    ORDER_STATUSES.includes(order.status_order?.toLowerCase()),
   ).length;
 
+  // Antrean Cucian: pending + diproses
   const queueCount = (ordersData || []).filter((order) =>
     QUEUE_STATUSES.includes(order.status_order?.toLowerCase()),
   ).length;
@@ -78,17 +83,18 @@ exports.getDashboardData = async (idUser, options = {}) => {
     throw deepCleaningError;
   }
 
+  // Deep Cleaning aktif: pending + diproses
   const deepCleaning = (deepCleaningData || []).filter((item) => {
     const statusOrder = item.orders?.status_order?.toLowerCase();
     const namaLayanan = item.services?.nama_layanan?.toLowerCase();
 
     return (
-      ACTIVE_STATUSES.includes(statusOrder) && namaLayanan?.includes("deep")
+      QUEUE_STATUSES.includes(statusOrder) && namaLayanan?.includes("deep")
     );
   }).length;
 
   // =========================
-  // AKTIVITAS TERKINI
+  // AKTIVITAS TERKINI / HISTORY
   // =========================
   let query = supabase
     .from("detail_orders")
@@ -126,8 +132,9 @@ exports.getDashboardData = async (idUser, options = {}) => {
     query = query.eq("orders.status_order", status.toLowerCase());
   }
 
-  if (search) {
-    query = query.or(`merk.ilike.%${search}%,jenis_sepatu.ilike.%${search}%`);
+  if (search && search.trim() !== "") {
+    const keyword = search.trim();
+    query = query.or(`merk.ilike.%${keyword}%,jenis_sepatu.ilike.%${keyword}%`);
   }
 
   query = query.order("id_detail_orders", { ascending: false });
@@ -138,9 +145,10 @@ exports.getDashboardData = async (idUser, options = {}) => {
     throw activityError;
   }
 
-  const filteredActivities = (activities || []).filter((item) =>
-    ACTIVE_STATUSES.includes(item.orders?.status_order?.toLowerCase()),
-  );
+  const filteredActivities = (activities || []).filter((item) => {
+    const orderStatus = item.orders?.status_order?.toLowerCase();
+    return ACTIVITY_STATUSES.includes(orderStatus);
+  });
 
   return {
     shop: {
@@ -150,7 +158,7 @@ exports.getDashboardData = async (idUser, options = {}) => {
     },
 
     summary: {
-      pesanan_aktif: activeOrders,
+      pesanan_aktif: totalOrders,
       antrean_cuci: queueCount,
       deep_cleaning: deepCleaning,
     },
