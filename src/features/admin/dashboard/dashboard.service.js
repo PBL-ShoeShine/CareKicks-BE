@@ -5,7 +5,7 @@ const QUEUE_STATUSES = ["pending", "diproses"];
 const ACTIVITY_STATUSES = ["pending", "diproses", "selesai"];
 
 exports.getDashboardData = async (idUser, options = {}) => {
-  const { status, search } = options;
+  const { status, search, limit } = options;
 
   // =========================
   // GET SHOP
@@ -96,48 +96,45 @@ exports.getDashboardData = async (idUser, options = {}) => {
   // =========================
   // AKTIVITAS TERKINI / HISTORY
   // =========================
+  const normalizedStatus = status?.toLowerCase();
   let query = supabase
-    .from("detail_orders")
+    .from("orders")
     .select(
       `
-      id_detail_orders,
-      merk,
-      jenis_sepatu,
-      warna,
-      review,
-      foto_sebelum,
-      foto_sesudah,
-      total_harga,
+      id_orders,
+      kode_order,
+      status_order,
+      tgl_order,
+      id_shops,
 
-      services (
-        nama_layanan
+      customers (
+        nama
       ),
 
-      orders!inner (
-        id_orders,
-        kode_order,
-        status_order,
-        tgl_order,
-        id_shops,
+      detail_orders (
+        id_detail_orders,
+        merk,
+        jenis_sepatu,
+        warna,
+        review,
+        foto_sebelum,
+        foto_sesudah,
+        total_harga,
 
-        customers (
-          nama
+        services (
+          nama_layanan
         )
       )
     `,
     )
-    .eq("orders.id_shops", idShops);
+    .eq("id_shops", idShops)
+    .in("status_order", ACTIVITY_STATUSES);
 
-  if (status && status !== "all") {
-    query = query.eq("orders.status_order", status.toLowerCase());
+  if (normalizedStatus && normalizedStatus !== "all") {
+    query = query.eq("status_order", normalizedStatus);
   }
 
-  if (search && search.trim() !== "") {
-    const keyword = search.trim();
-    query = query.or(`merk.ilike.%${keyword}%,jenis_sepatu.ilike.%${keyword}%`);
-  }
-
-  query = query.order("id_detail_orders", { ascending: false });
+  query = query.order("tgl_order", { ascending: false });
 
   const { data: activities, error: activityError } = await query;
 
@@ -145,10 +142,60 @@ exports.getDashboardData = async (idUser, options = {}) => {
     throw activityError;
   }
 
-  const filteredActivities = (activities || []).filter((item) => {
-    const orderStatus = item.orders?.status_order?.toLowerCase();
-    return ACTIVITY_STATUSES.includes(orderStatus);
+  const keyword = search?.trim().toLowerCase();
+  const activityRows = (activities || []).flatMap((order) => {
+    const details = Array.isArray(order.detail_orders)
+      ? order.detail_orders
+      : [];
+
+    if (details.length === 0) {
+      if (keyword) return [];
+
+      return [
+        {
+          id_detail_orders: null,
+          id_orders: order.id_orders,
+          kode_order: order.kode_order,
+          nama_sepatu: "Sepatu",
+          warna: null,
+          layanan: "-",
+          customer: order.customers?.nama,
+          status_order: order.status_order?.toLowerCase(),
+          review: null,
+          total_harga: 0,
+          foto_sebelum: null,
+          foto_sesudah: null,
+          tanggal_order: order.tgl_order,
+        },
+      ];
+    }
+
+    return details
+      .filter((detail) => {
+        if (!keyword) return true;
+
+        return [detail.merk, detail.jenis_sepatu].some((value) =>
+          value?.toLowerCase().includes(keyword),
+        );
+      })
+      .map((detail) => ({
+        id_detail_orders: detail.id_detail_orders,
+        id_orders: order.id_orders,
+        kode_order: order.kode_order,
+        nama_sepatu: `${detail.merk || "-"} ${detail.jenis_sepatu || "-"}`,
+        warna: detail.warna,
+        layanan: detail.services?.nama_layanan || "-",
+        customer: order.customers?.nama,
+        status_order: order.status_order?.toLowerCase(),
+        review: detail.review,
+        total_harga: Number(detail.total_harga || 0),
+        foto_sebelum: detail.foto_sebelum,
+        foto_sesudah: detail.foto_sesudah,
+        tanggal_order: order.tgl_order,
+      }));
   });
+
+  const aktivitasTerkini = limit ? activityRows.slice(0, limit) : activityRows;
 
   return {
     shop: {
@@ -163,20 +210,6 @@ exports.getDashboardData = async (idUser, options = {}) => {
       deep_cleaning: deepCleaning,
     },
 
-    aktivitas_terkini: filteredActivities.map((item) => ({
-      id_detail_orders: item.id_detail_orders,
-      id_orders: item.orders?.id_orders,
-      kode_order: item.orders?.kode_order,
-      nama_sepatu: `${item.merk || "-"} ${item.jenis_sepatu || "-"}`,
-      warna: item.warna,
-      layanan: item.services?.nama_layanan,
-      customer: item.orders?.customers?.nama,
-      status_order: item.orders?.status_order?.toLowerCase(),
-      review: item.review,
-      total_harga: Number(item.total_harga || 0),
-      foto_sebelum: item.foto_sebelum,
-      foto_sesudah: item.foto_sesudah,
-      tanggal_order: item.orders?.tgl_order,
-    })),
+    aktivitas_terkini: aktivitasTerkini,
   };
 };
