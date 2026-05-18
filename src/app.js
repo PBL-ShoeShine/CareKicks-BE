@@ -44,6 +44,17 @@ app.use((req, res, next) => {
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err);
+
+  if (err instanceof multer.MulterError) {
+    const message =
+      err.code === "LIMIT_FILE_SIZE" ? "Ukuran foto maksimal 5MB" : err.message;
+
+    return res.status(400).json({
+      success: false,
+      message,
+    });
+  }
+
   res.status(err.status || 500).json({
     success: false,
     message: err.message || "Internal Server Error",

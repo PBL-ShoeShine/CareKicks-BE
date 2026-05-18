@@ -17,3 +17,17 @@ exports.login = async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
+
+exports.updateProfilePhoto = async (req, res) => {
+  try {
+    const idUser = req.user.id;
+    const data = await service.updateProfilePhoto(idUser, req.file);
+
+    res.json({
+      message: "Foto profil berhasil diperbarui",
+      data,
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
