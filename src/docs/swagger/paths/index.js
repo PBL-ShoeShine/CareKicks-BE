@@ -1,6 +1,7 @@
 const userAuthPaths = require("./user/auth");
 const adminTrackingPaths = require("./admin/tracking");
 const adminTokoPaths = require("./admin/toko");
+const adminInventarisPaths = require("./admin/inventaris");
 const antrean = require("./admin/antrean");
 const manajemenStaff = require("./admin/manajemen_staff");
 
@@ -11,6 +12,7 @@ module.exports = {
   ...userAuthPaths,
   ...adminTrackingPaths,
   ...adminTokoPaths,
+  ...adminInventarisPaths,
   ...antrean,
   ...manajemenStaff,
   ...adminDashboardPaths,

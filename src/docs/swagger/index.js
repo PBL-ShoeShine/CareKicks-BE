@@ -20,6 +20,10 @@ const openapi = {
       description: "Admin tracking orders",
     },
     {
+      name: "Admin Inventaris",
+      description: "Admin inventory management",
+    },
+    {
       name: "Admin Toko",
       description: "Admin shop profile and operating hours",
     },
