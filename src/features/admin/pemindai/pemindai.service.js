@@ -1,43 +1,86 @@
 const supabase = require("../../../core/config/supabase");
 
-/**
- * Fungsi untuk mengambil detail pesanan berdasarkan QR Code
- * @param {string} qrLink - Teks atau link dari QR Code hasil pindaian
- * @returns {object} data - Objek JSON berisi detail order, customer, dan layanan
- */
-exports.getDetailByQR = async (qrLink) => {
-  const { data, error } = await supabase
+// FUNGSI CARI DATA (SMART EXTRACT QR SEARCH)
+exports.getDetailByQR = async (qrText) => {
+  const cleanInput = qrText.trim();
+  let targetSearchText = cleanInput;
+
+  console.log("\n[PROSES PARSING BACKEND]:", cleanInput);
+
+  // Jika input dari kamera adalah URL link QR Server, potong otomatis diambil ujung kodenya saja
+  if (cleanInput.includes("data=ORD")) {
+    const parts = cleanInput.split("data=");
+    if (parts.length > 1) {
+      targetSearchText = parts[1].trim();
+      console.log("[HASIL EKSTRAKSI URL QR]:", targetSearchText);
+    }
+  }
+
+  // QUERY BERSIH: Semua komentar teks merusak sudah dihapus total
+  let query = supabase
     .from("orders")
     .select(`
       id_orders,
       kode_order,
       tgl_order,
       status_order,
+      metode_pengambilan,
+      alamat_pengantaran,
       link_qr,
-      customers (
-        nama,
-        alamat
-      ),
+      customers (nama, alamat),
       detail_orders (
-        merk,
-        jenis_sepatu,
+        merk, 
+        jenis_sepatu, 
         warna,
-        foto_sebelum,
-        services (
-          nama_layanan,
-          harga
-        )
+        catatan,
+        services (nama_layanan, harga)
       )
     `)
-    .eq("kode_order", qrLink) // Mencari baris yang nilai link_qr-nya sama dengan parameter
-    .single(); // .single() memaksa kembalian berupa 1 objek (bukan array)
+    .eq("kode_order", targetSearchText); 
 
-  if (error || !data) {
-    const err = new Error("Data pesanan untuk QR ini tidak ditemukan");
-    err.status = 404; // Status ini akan dibaca oleh pemindai.controller.js
+  const { data, error } = await query;
+
+  if (error) {
+    console.log("\n[ALASAN DITOLAK SUPABASE]:", error.message);
+  }
+
+  if (error || !data || data.length === 0) {
+    const err = new Error(`Data tidak ditemukan untuk input: ${targetSearchText}`);
+    err.status = 404;
+    throw err;
+  }
+  
+  return data[0];
+};
+
+// FUNGSI UPDATE STATUS - MURNI HANYA UPDATE TABEL ORDERS SAJA
+exports.updateStatusOrder = async (kodeOrder, newStatus) => {
+  const cleanKode = kodeOrder.trim(); 
+
+  let statusDatabase = newStatus.toLowerCase();
+  if (statusDatabase === 'washing' || statusDatabase === 'sedang diproses') {
+    statusDatabase = 'dicuci';
+  } else if (statusDatabase === 'selesai' && newStatus !== 'selesai diantar') {
+    statusDatabase = 'siap_ambil';
+  }
+
+  const { data: orderData, error: orderError } = await supabase
+    .from("orders")
+    .update({ status_order: statusDatabase })
+    .eq("kode_order", cleanKode)
+    .select("id_orders"); 
+
+  if (orderError) {
+    const err = new Error(orderError.message);
+    err.status = 500;
     throw err;
   }
 
-  // Jika sukses, kembalikan bongkahan data ke Controller
-  return data;
+  if (!orderData || orderData.length === 0) {
+    const err = new Error(`Gagal: Tidak ada pesanan dengan kode ${cleanKode}`);
+    err.status = 404;
+    throw err;
+  }
+
+  return orderData;
 };

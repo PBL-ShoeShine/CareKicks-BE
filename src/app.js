@@ -1,5 +1,4 @@
 require("dotenv").config();
-
 const express = require("express");
 const multer = require("multer");
 const listEndpoints = require("express-list-endpoints");
@@ -9,6 +8,12 @@ const openapi = require("./docs/swagger");
 const app = express();
 
 // Middleware
+const cors = require("cors"); 
+const listEndpoints = require("express-list-endpoints");
+
+const app = express();
+
+app.use(cors()); // Aktifkan akses lintas perangkat
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -21,8 +26,8 @@ app.use((req, res, next) => {
 // Multer configuration for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
-// import routes
 const routes = require("./routes");
+app.use("/api/v1", routes); // Jalur utama API
 
 // register routes
 //  Semua rute diawali dengan /api/v1
@@ -74,4 +79,9 @@ app.listen(process.env.PORT, () => {
 			PATH: route.path,
 		})),
 	);
+});
+app.listen(process.env.PORT, '0.0.0.0', () => {
+  console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${process.env.PORT}`);
+  console.log("===== DAFTAR RUTE AKTIF =====");
+  console.table(listEndpoints(app).map(r => ({ METHODS: r.methods.join(", "), PATH: r.path })));
 });

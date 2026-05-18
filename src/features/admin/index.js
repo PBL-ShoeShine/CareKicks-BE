@@ -31,3 +31,7 @@ router.use("/tracking", require("./tracking"));
 // Admin manajemen karyawan routes
 router.use("/manajemen_staff", require("./manajemen_staff/manajemen_staff.routes"));
 module.exports = router;
+// Admin edit profile routes 
+router.use("/profile", require("./edit_profile/edit_profile.routes"));
+
+module.exports = router;
