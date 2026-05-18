@@ -66,6 +66,26 @@ exports.getTrackingDetail = async (req, res) => {
 	}
 };
 
+exports.getLatestLocation = async (req, res) => {
+	try {
+		const { id_orders } = req.params;
+
+		const detail = await trackingService.getLatestLocation(id_orders);
+
+		return res.status(200).json({
+			success: true,
+			message: "Latest tracking retrieved successfully",
+			data: detail,
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(500).json({
+			success: false,
+			message: error.message,
+		});
+	}
+};
+
 exports.updateTrackingStatus = async (req, res) => {
 	try {
 		const userId = req.user.id;
@@ -112,6 +132,38 @@ exports.updateTrackingStatus = async (req, res) => {
 			success: true,
 			message: "Order status updated successfully",
 			data: updatedOrder,
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(500).json({
+			success: false,
+			message: error.message,
+		});
+	}
+};
+
+exports.updateLocation = async (req, res) => {
+	try {
+		const { id_orders } = req.params;
+		const { latitude, longitude, id_staff, status } = req.body;
+
+		if (!latitude || !longitude) {
+			return res.status(400).json({
+				success: false,
+				message: "Latitude and longitude are required",
+			});
+		}
+
+		await trackingService.updateLocation(id_orders, {
+			latitude: parseFloat(latitude),
+			longitude: parseFloat(longitude),
+			id_staff,
+			status,
+		});
+
+		return res.status(200).json({
+			success: true,
+			message: "Location updated successfully",
 		});
 	} catch (error) {
 		console.error(error);

@@ -61,7 +61,7 @@ http://localhost:3000/api
         "id_orders": 1,
         "kode_order": "#RSK-8821",
         "tgl_order": "2024-05-05T10:30:00Z",
-        "status_order": "SEDANG DICUCI",
+        "status_order": "diproses",
         "nama_produk": "Nike Air Jordan 1 Retro",
         "nama_pelanggan": "Budi Santoso",
         "nama_staff": "Andi Wijaya",
@@ -134,7 +134,7 @@ http://localhost:3000/api
         "id_orders": 1,
         "kode_order": "#RSK-8821",
         "tgl_order": "2024-05-05T10:30:00Z",
-        "status_order": "SEDANG_DICUCI",
+        "status_order": "diproses",
         "nama_pelanggan": "Budi Santoso",
         "no_hp_pelanggan": "081234567890",
         "nama_produk": "Nike Air Jordan 1 Retro",
@@ -203,7 +203,7 @@ http://localhost:3000/api
       "id_orders": 1,
       "kode_order": "#RSK-8821",
       "tgl_order": "2024-05-05T10:30:00Z",
-      "status_order": "SEDANG_DICUCI",
+      "status_order": "diproses",
       "metode_order": "MANUAL",
       "metode_bayar": "TUNAI",
       "status_pembayaran": "LUNAS"
@@ -367,7 +367,7 @@ http://localhost:3000/api
     "id_orders": 1,
     "kode_order": "#RSK-8821",
     "tgl_order": "2024-05-05T10:30:00Z",
-    "status_order": "ORDER_MASUK",
+    "status_order": "pending",
     "status_pembayaran": "PENDING",
     "total_harga": 80000,
     "qr_info": {
@@ -454,7 +454,7 @@ http://localhost:3000/api
       "image": "data:image/png;base64,...",
       "link": "https://carekicks.com/track/RSK-8821"
     },
-    "status_order": "ORDER_MASUK",
+    "status_order": "pending",
     "status_pembayaran": "LUNAS"
   }
 }
@@ -599,7 +599,7 @@ http://localhost:3000/api
 **Request Body:**
 ```json
 {
-  "status_order": "SEDANG_DICUCI",
+  "status_order": "diproses",
   "id_staff": 1,
   "latitude": -6.2088,
   "longitude": 106.8456,
@@ -614,7 +614,7 @@ http://localhost:3000/api
   "message": "Order status updated successfully",
   "data": {
     "id_orders": 1,
-    "status_order": "SEDANG_DICUCI",
+    "status_order": "diproses",
     "tracking_log": {
       "id_tracking_logs": 10,
       "status": "SEDANG_DICUCI",
@@ -736,21 +736,16 @@ Authorization: Bearer {JWT_TOKEN}
 
 ## Status Order Values
 
-- `ORDER_MASUK` - Pesanan baru masuk
-- `ANTREAN` - Menunggu proses
-- `SEDANG_DICUCI` - Sedang dalam proses cuci
-- `QUALITY_CHECK` - Pemeriksaan kualitas
-- `SIAP_AMBIL` - Siap diambil/dikirim
-- `SELESAI` - Pesanan selesai
-- `DIBATALKAN` - Pesanan dibatalkan
+- `pending` - pending
+- `diproses` - diproses
+- `selesai` - selesai
 
 ---
 
 ## Status Pembayaran Values
 
-- `PENDING` - Menunggu pembayaran
-- `LUNAS` - Pembayaran selesai
-- `GAGAL` - Pembayaran gagal
+- `pending` - Menunggu pembayaran
+- `selesai` - Pembayaran selesai / Lunas
 
 ---
 
@@ -766,4 +761,6 @@ Authorization: Bearer {JWT_TOKEN}
 
 - `QR_SCAN` - Order via scan QR
 - `MANUAL` - Input manual/walk-in
+
+ual/walk-in
 

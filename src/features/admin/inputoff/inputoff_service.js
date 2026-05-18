@@ -139,6 +139,7 @@ exports.createOfflineOrder = async (inputData) => {
       merk: merk || "-",
       jenis_sepatu: jenis_sepatu,
       warna: warna || "-",
+      catatan: catatan || null,
       review: null,
       foto_sesudah: null,
       total_harga: service.price || 0,

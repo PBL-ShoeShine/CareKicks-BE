@@ -28,8 +28,24 @@ const openapi = {
       description: "Admin shop profile and operating hours",
     },
     {
+      name: "Admin Dashboard",
+      description: "Admin dashboard statistics and info",
+    },
+    {
+      name: "Admin Manajemen Layanan",
+      description: "Admin service management",
+    },
+    {
       name: "User Auth",
       description: "User registration and login",
+    },
+    {
+      name: "Admin Antrean",
+      description: "Manajemen antrean order",
+    },
+    {
+      name: "Admin Manajemen Staff",
+      description: "Manajemen data staff",
     },
   ],
   components,
