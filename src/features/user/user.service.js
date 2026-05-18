@@ -34,10 +34,12 @@ exports.register = async ({ nama, no_hp, email, password }) => {
     role: data.jenis_role,
   });
 
+  const { password: _password, ...safeUser } = data;
+
   return {
     message: "Register berhasil",
     token,
-    user: data,
+    user: safeUser,
   };
 };
 
@@ -66,9 +68,11 @@ exports.login = async ({ email, password }) => {
     role: data.jenis_role,
   });
 
+  const { password: _password, ...safeUser } = data;
+
   return {
     message: "Login berhasil",
     token,
-    user: data,
+    user: safeUser,
   };
 };
