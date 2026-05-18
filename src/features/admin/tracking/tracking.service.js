@@ -43,7 +43,8 @@ exports.getTrackingDetail = async (orderId) => {
       `
       *,
       customers (nama, nomor_hp, alamat, latitude, longitude),
-      detail_orders (*, services (*))
+      detail_orders (*, services (*)),
+      shops (lat_toko, long_toko)
     `,
     )
     .eq("id_orders", orderId)
@@ -71,6 +72,57 @@ exports.getTrackingDetail = async (orderId) => {
     order,
     tracking_logs: logs,
   };
+};
+
+exports.getLatestLocation = async (orderId) => {
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select(
+      `
+      id_orders,
+      kode_order,
+      status_order,
+      customers (nama, latitude, longitude),
+      shops (lat_toko, long_toko)
+    `,
+    )
+    .eq("id_orders", orderId)
+    .single();
+
+  if (orderError) throw orderError;
+
+  const { data: latestLog, error: logsError } = await supabase
+    .from("tracking_logs")
+    .select("*")
+    .eq("id_orders", orderId)
+    .order("waktu", { ascending: false })
+    .limit(1)
+    .single();
+
+  // If latestLog is empty, it's not an error, just no logs yet
+  return {
+    order,
+    latest_log: latestLog || null,
+  };
+};
+
+exports.updateLocation = async (orderId, payload) => {
+  const { latitude, longitude, id_staff, status } = payload;
+
+  const { error: logError } = await supabase.from("tracking_logs").insert([
+    {
+      id_orders: orderId,
+      status: status || "sedang mengantar",
+      keterangan: "Update lokasi kurir",
+      latitude: latitude,
+      longitude: longitude,
+      id_staff: id_staff,
+      waktu: new Date().toISOString(),
+    },
+  ]);
+
+  if (logError) throw logError;
+  return { success: true };
 };
 
 exports.updateStatus = async (orderId, shopId, payload) => {
