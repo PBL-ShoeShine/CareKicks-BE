@@ -102,12 +102,14 @@ exports.createInventoryItem = async (shopId, itemData) => {
   try {
     const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan, foto_inven } = itemData;
 
+    const initialStock = Number(stok_saat_ini) || 0;
+    
     const insertData = {
       id_shops: shopId,
       nama_item,
       kategori,
-      stok_saat_ini: Number(stok_saat_ini) || 0,
-      stok_maksimum: Number(stok_maksimum) || 0,
+      stok_saat_ini: initialStock,
+      stok_maksimum: stok_maksimum ? Number(stok_maksimum) : initialStock,
       stok_minimum: Number(stok_minimum) || 0,
       satuan,
       foto_inven
