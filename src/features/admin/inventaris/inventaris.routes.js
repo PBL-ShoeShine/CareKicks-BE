@@ -22,4 +22,7 @@ router.delete("/:id", authMiddleware, inventarisController.deleteItem);
 // ADD stock (increment)
 router.post("/:id/add-stock", authMiddleware, inventarisController.addStock);
 
+// REDUCE stock (decrement)
+router.post("/:id/reduce-stock", authMiddleware, inventarisController.reduceStock);
+
 module.exports = router;

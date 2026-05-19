@@ -121,7 +121,21 @@ Menambahkan jumlah stok ke item yang sudah ada (Fitur "Tambah Stok").
 }
 ```
 
-### 6. Hapus Item
+### 6. Kurangi Stok (Decrement)
+Mengurangi jumlah stok dari item yang sudah ada.
+
+- **URL:** `/:id/reduce-stock`
+- **Method:** `POST`
+- **Auth Required:** Yes (Bearer Token)
+- **Body Format:** `application/json`
+- **Body:**
+```json
+{
+    "amount": 100
+}
+```
+
+### 7. Hapus Item
 Menghapus item dari inventaris. Otomatis menghapus gambar dari storage jika ada.
 
 - **URL:** `/:id`
