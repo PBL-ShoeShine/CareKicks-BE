@@ -20,7 +20,7 @@ exports.login = async (req, res) => {
 
 exports.updateProfilePhoto = async (req, res) => {
   try {
-    const idUser = req.user.id;
+    const idUser = req.user.id_user;
     const data = await service.updateProfilePhoto(idUser, req.file);
 
     res.json({

@@ -1,4 +1,5 @@
 const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
 
 const DAY_NAMES = {
 	1: "Senin",
@@ -10,34 +11,7 @@ const DAY_NAMES = {
 	7: "Minggu",
 };
 
-const getShopByUserId = async (userId) => {
-	const { data, error } = await supabase
-		.from("shops_admin")
-		.select(
-			`
-      id_shops_admin,
-      shops (
-        id_shops,
-        nm_toko,
-        desk_toko,
-        alamat_toko,
-        lat_toko,
-        long_toko,
-        foto_toko,
-        spesialisasi,
-        tgl_berdiri
-      )
-    `,
-		)
-		.eq("id_user", userId)
-		.single();
-
-	if (error || !data || !data.shops || data.shops.length === 0) {
-		throw new Error("Shop not found for this admin user");
-	}
-
-	return data.shops[0];
-};
+const getShopByUser = async (authUser) => (await shopAccess.getShopForUser(authUser)).shop;
 
 const SHOP_SELECT =
 	"id_shops, nm_toko, desk_toko, alamat_toko, lat_toko, long_toko, foto_toko, spesialisasi, tgl_berdiri";
@@ -97,8 +71,9 @@ exports.deleteShopImage = async (imageUrl) => {
 	}
 };
 
-exports.getShopProfile = async (userId) => {
-	const shop = await getShopByUserId(userId);
+exports.getShopProfile = async (authUser) => {
+	const shop = await getShopByUser(authUser);
+	const userId = shopAccess.getUserId(authUser);
 
 	const { data: userData, error: userError } = await supabase
 		.from("users")
@@ -125,8 +100,8 @@ exports.getShopProfile = async (userId) => {
 	};
 };
 
-exports.getOperatingHours = async (userId) => {
-	const shop = await getShopByUserId(userId);
+exports.getOperatingHours = async (authUser) => {
+	const shop = await getShopByUser(authUser);
 
 	const { data, error } = await supabase
 		.from("shop_operating_hours")
@@ -144,7 +119,7 @@ exports.getOperatingHours = async (userId) => {
 	}));
 };
 
-exports.updateShopProfile = async (userId, payload) => {
+exports.updateShopProfile = async (authUser, payload) => {
 	const {
 		nm_toko,
 		desk_toko,
@@ -156,7 +131,7 @@ exports.updateShopProfile = async (userId, payload) => {
 		file,
 	} = payload;
 
-	const shop = await getShopByUserId(userId);
+	const shop = await getShopByUser(authUser);
 
 	let fotoUrl;
 	if (file) {
@@ -186,11 +161,11 @@ exports.updateShopProfile = async (userId, payload) => {
 
 	if (error) throw error;
 
-	return exports.getShopProfile(userId);
+	return exports.getShopProfile(authUser);
 };
 
-exports.updateOperatingHours = async (userId, hours) => {
-	const shop = await getShopByUserId(userId);
+exports.updateOperatingHours = async (authUser, hours) => {
+	const shop = await getShopByUser(authUser);
 	const now = new Date().toISOString();
 
 	const payload = hours.map((item) => ({

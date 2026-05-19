@@ -46,6 +46,7 @@ exports.register = async ({ nama, no_hp, email, password }) => {
 
   const token = jwtService.signToken({
     id: data.id_user,
+    id_user: data.id_user,
     role: data.jenis_role,
   });
 
@@ -77,19 +78,97 @@ exports.login = async ({ email, password }) => {
     throw new Error("Password salah");
   }
 
+  const safeUserPayload = await buildLoginUserPayload(data);
+
   // generate token
   const token = jwtService.signToken({
     id: data.id_user,
+    id_user: data.id_user,
     role: data.jenis_role,
+    id_shops: safeUserPayload.id_shops,
+    id_staff: safeUserPayload.id_staff,
   });
-
-  const { password: _password, ...safeUser } = data;
 
   return {
     message: "Login berhasil",
     token,
-    user: safeUser,
+    user: safeUserPayload,
   };
+};
+
+const buildLoginUserPayload = async (userData) => {
+  const { password: _password, ...safeUser } = userData;
+
+  if (userData.jenis_role === "staff") {
+    const { data: staffData, error: staffError } = await supabase
+      .from("staff")
+      .select(
+        `
+        id_staff,
+        id_staff_profile,
+        staff_profile!inner (
+          id_staff_profile,
+          id_shops,
+          role,
+          status,
+          shops (
+            id_shops,
+            nm_toko,
+            desk_toko,
+            alamat_toko,
+            foto_toko,
+            spesialisasi
+          )
+        )
+      `,
+      )
+      .eq("id_user", userData.id_user)
+      .maybeSingle();
+
+    if (staffError) throw new Error(staffError.message);
+    if (!staffData?.staff_profile?.id_shops) {
+      throw new Error("Relasi staff ke toko belum lengkap");
+    }
+
+    const shop = Array.isArray(staffData.staff_profile.shops)
+      ? staffData.staff_profile.shops[0]
+      : staffData.staff_profile.shops;
+
+    return {
+      ...safeUser,
+      id_staff: staffData.id_staff,
+      id_staff_profile: staffData.id_staff_profile,
+      id_shops: staffData.staff_profile.id_shops,
+      staff_profile: {
+        id_staff_profile: staffData.staff_profile.id_staff_profile,
+        role: staffData.staff_profile.role,
+        status: staffData.staff_profile.status,
+      },
+      shop,
+    };
+  }
+
+  if (userData.jenis_role === "shops_admin") {
+    const { data: shopAdmin, error: shopAdminError } = await supabase
+      .from("shops_admin")
+      .select("id_shops_admin, shops(id_shops, nm_toko, desk_toko, alamat_toko, foto_toko, spesialisasi)")
+      .eq("id_user", userData.id_user)
+      .maybeSingle();
+
+    if (!shopAdminError && shopAdmin?.shops) {
+      const shop = Array.isArray(shopAdmin.shops)
+        ? shopAdmin.shops[0]
+        : shopAdmin.shops;
+      return {
+        ...safeUser,
+        id_shops_admin: shopAdmin.id_shops_admin,
+        id_shops: shop?.id_shops,
+        shop,
+      };
+    }
+  }
+
+  return safeUser;
 };
 
 exports.updateProfilePhoto = async (idUser, file) => {

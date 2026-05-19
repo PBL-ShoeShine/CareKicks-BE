@@ -1,27 +1,14 @@
 const inventarisService = require("./inventaris.service");
 const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
 
-// helper ambil shop id admin
-const getShopIdByUser = async (userId) => {
-  const { data, error } = await supabase
-    .from("shops_admin")
-    .select("id_shops_admin, shops(id_shops)")
-    .eq("id_user", userId)
-    .single();
-
-  if (error || !data || !data.shops || data.shops.length === 0) {
-    throw new Error("Shop not found for this admin user");
-  }
-
-  return data.shops[0].id_shops;
-};
+const getShopIdByUser = (authUser) => shopAccess.getShopIdForUser(authUser);
 
 exports.getInventory = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { search = "", category = "" } = req.query;
 
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const items = await inventarisService.getInventoryItems(
       shopId,
@@ -45,8 +32,7 @@ exports.getInventory = async (req, res) => {
 
 exports.getSummary = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const summary = await inventarisService.getInventorySummary(shopId);
 
@@ -66,8 +52,7 @@ exports.getSummary = async (req, res) => {
 
 exports.createItem = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan } = req.body;
     const file = req.file;
@@ -111,11 +96,10 @@ exports.createItem = async (req, res) => {
 
 exports.updateItem = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { id } = req.params;
     const { nama_item, kategori, stok_saat_ini, stok_maksimum, stok_minimum, satuan } = req.body;
     const file = req.file;
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     let fotoUrl = undefined;
     if (file) {
@@ -162,9 +146,8 @@ exports.updateItem = async (req, res) => {
 
 exports.deleteItem = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { id } = req.params;
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const result = await inventarisService.deleteInventoryItem(id, shopId);
 
@@ -183,7 +166,6 @@ exports.deleteItem = async (req, res) => {
 
 exports.addStock = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { id } = req.params;
     const { amount } = req.body;
 
@@ -194,7 +176,7 @@ exports.addStock = async (req, res) => {
       });
     }
 
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const updatedItem = await inventarisService.addStock(id, shopId, amount);
 

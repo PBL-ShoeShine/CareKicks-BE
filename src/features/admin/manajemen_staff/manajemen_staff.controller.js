@@ -4,17 +4,15 @@ class ManajemenStaffController {
   // 1. Tambah Staff
   async createStaff(req, res) {
     try {
-      // Tambahkan password di destrukturisasi body
-      const { nama, email, no_hp, id_shops, role, password } = req.body;
+      const { nama, email, no_hp, role, password } = req.body;
 
-      const result = await ManajemenStaffService.registerStaff({
+      const result = await ManajemenStaffService.registerStaff(req.user, {
         nama,
         email,
         no_hp,
-        id_shops,
         role,
-        password, // Kirim ke service
-        status: "AKTIF", // Default status saat pertama kali didaftarkan
+        password,
+        status: "AKTIF",
       });
 
       res.status(201).json({ success: true, data: result });
@@ -27,7 +25,7 @@ class ManajemenStaffController {
   async getStaffList(req, res) {
     try {
       const { search } = req.query;
-      const result = await ManajemenStaffService.getAllStaff(search);
+      const result = await ManajemenStaffService.getAllStaff(req.user, search);
 
       res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -38,7 +36,7 @@ class ManajemenStaffController {
   // 3. Detail Staff
   async getStaffById(req, res) {
     try {
-      const result = await ManajemenStaffService.getStaffById(req.params.id);
+      const result = await ManajemenStaffService.getStaffById(req.user, req.params.id);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       res
@@ -54,6 +52,7 @@ class ManajemenStaffController {
       const updateData = req.body; // Bisa menerima update status, nama, atau role
 
       const result = await ManajemenStaffService.updateStaffProfile(
+        req.user,
         id,
         updateData,
       );
@@ -72,7 +71,7 @@ class ManajemenStaffController {
   async deleteStaff(req, res) {
     try {
       const { id } = req.params;
-      await ManajemenStaffService.deleteStaff(id);
+      await ManajemenStaffService.deleteStaff(req.user, id);
 
       res.status(200).json({
         success: true,

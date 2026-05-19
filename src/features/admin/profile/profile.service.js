@@ -1,6 +1,8 @@
 const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
 
-exports.getProfileData = async (idUser) => {
+exports.getProfileData = async (authUser) => {
+  const idUser = shopAccess.getUserId(authUser);
   // Get user data
   const { data: userData, error: userError } = await supabase
     .from("users")
@@ -16,32 +18,12 @@ exports.getProfileData = async (idUser) => {
     throw new Error("User tidak ditemukan");
   }
 
-  // Get admin shop data
-  const { data: adminData, error: adminError } = await supabase
-    .from("shops_admin")
-    .select(
-      `
-      id_shops_admin,
-      shops (
-        id_shops,
-        nm_toko,
-        alamat_toko,
-        jam_buka,
-        jam_tutup,
-        saldo_toko,
-        foto_toko,
-        desk_toko
-      )
-    `,
-    )
-    .eq("id_user", idUser)
-    .single();
-
-  if (adminError && adminError.code !== "PGRST116") {
-    throw adminError;
+  let shop = null;
+  try {
+    shop = (await shopAccess.getShopForUser(authUser)).shop || null;
+  } catch (_) {
+    shop = null;
   }
-
-  const shop = adminData?.shops || null;
 
   return {
     user: userData,

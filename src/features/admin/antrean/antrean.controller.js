@@ -4,9 +4,7 @@ const antreanService = require("./antrean.service");
 exports.getAllAntrean = async (req, res) => {
   try {
     const { status } = req.query;
-    const idUser = req.user.id; // dari JWT token
-
-    const data = await antreanService.getAllAntrean(idUser, status);
+    const data = await antreanService.getAllAntrean(req.user, status);
     return res.status(200).json({
       success: true,
       message: "Data antrean berhasil diambil",
@@ -21,9 +19,7 @@ exports.getAllAntrean = async (req, res) => {
 // GET /api/v1/admin/antrean/total
 exports.getTotalAntrean = async (req, res) => {
   try {
-    const idUser = req.user.id;
-
-    const data = await antreanService.getTotalAntrean(idUser);
+    const data = await antreanService.getTotalAntrean(req.user);
     return res.status(200).json({
       success: true,
       message: "Total antrean berhasil diambil",
@@ -40,7 +36,7 @@ exports.getAntreanById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const data = await antreanService.getAntreanById(id);
+    const data = await antreanService.getAntreanById(req.user, id);
     return res.status(200).json({
       success: true,
       message: "Detail antrean berhasil diambil",
@@ -65,7 +61,7 @@ exports.updateStatus = async (req, res) => {
       });
     }
 
-    const data = await antreanService.updateStatus(id, status);
+    const data = await antreanService.updateStatus(req.user, id, status);
     return res.status(200).json({
       success: true,
       message: `Status berhasil diubah ke '${status}'`,

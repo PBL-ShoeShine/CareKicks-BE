@@ -1,42 +1,16 @@
 const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
 
 const ORDER_STATUSES = ["pending", "diproses", "selesai"];
 const QUEUE_STATUSES = ["pending", "diproses"];
 const ACTIVITY_STATUSES = ["pending", "diproses", "selesai"];
 
-exports.getDashboardData = async (idUser, options = {}) => {
+exports.getDashboardData = async (authUser, options = {}) => {
   const { status, search, limit } = options;
 
-  // =========================
-  // GET SHOP
-  // =========================
-  const { data: shopData, error: shopError } = await supabase
-    .from("shops_admin")
-    .select(
-      `
-      id_shops_admin,
-      shops (
-        id_shops,
-        nm_toko,
-        saldo_toko
-      )
-    `,
-    )
-    .eq("id_user", idUser)
-    .single();
-
-  if (shopError) {
-    throw shopError;
-  }
-
-  if (!shopData || !shopData.shops || shopData.shops.length === 0) {
-    throw new Error("Toko tidak ditemukan untuk user ini");
-  }
-
-  const shop = Array.isArray(shopData.shops)
-    ? shopData.shops[0]
-    : shopData.shops;
-  const idShops = shop.id_shops;
+  const access = await shopAccess.getShopForUser(authUser);
+  const shop = access.shop || { id_shops: access.id_shops };
+  const idShops = access.id_shops;
 
   // =========================
   // AMBIL SEMUA ORDER TOKO

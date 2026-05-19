@@ -1,40 +1,14 @@
 const manajemenLayananService = require("./manajemen_layanan.service");
 const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
 
-// helper ambil shop id admin
-// helper ambil shop id dari user admin
-const getShopIdByUser = async (userId) => {
-  // cari shops_admin dulu
-  const { data: shopAdmin, error: adminError } = await supabase
-    .from("shops_admin")
-    .select("id_shops_admin")
-    .eq("id_user", userId)
-    .single();
-
-  if (adminError || !shopAdmin) {
-    throw new Error("Shop admin not found for this user");
-  }
-
-  // cari toko berdasarkan id_shops_admin
-  const { data: shop, error: shopError } = await supabase
-    .from("shops")
-    .select("id_shops")
-    .eq("id_shops_admin", shopAdmin.id_shops_admin)
-    .single();
-
-  if (shopError || !shop) {
-    throw new Error("Shop not found for this admin user");
-  }
-
-  return shop.id_shops;
-};
+const getShopIdByUser = (authUser) => shopAccess.getShopIdForUser(authUser);
 
 exports.getServices = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { search = "", category = "" } = req.query;
 
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const services = await manajemenLayananService.getServices(
       shopId,
@@ -59,7 +33,6 @@ exports.getServices = async (req, res) => {
 
 exports.createService = async (req, res) => {
   try {
-    const userId = req.user.id;
 
     const { nama_layanan, harga, estimasi_waktu, deskripsi } = req.body || {};
 
@@ -83,7 +56,7 @@ exports.createService = async (req, res) => {
       });
     }
 
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     // upload foto jika ada
     let fotoUrl = null;
@@ -117,7 +90,6 @@ exports.createService = async (req, res) => {
 
 exports.updateServiceStatus = async (req, res) => {
   try {
-    const userId = req.user.id;
 
     const { id } = req.params;
     const { is_active } = req.body;
@@ -129,7 +101,7 @@ exports.updateServiceStatus = async (req, res) => {
       });
     }
 
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const updatedService = await manajemenLayananService.updateServiceStatus(
       id,
@@ -154,7 +126,6 @@ exports.updateServiceStatus = async (req, res) => {
 
 exports.updateService = async (req, res) => {
   try {
-    const userId = req.user.id;
 
     const { id } = req.params;
 
@@ -162,7 +133,7 @@ exports.updateService = async (req, res) => {
 
     const file = req.file;
 
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     let parsedHarga;
 
@@ -230,11 +201,10 @@ exports.updateService = async (req, res) => {
 
 exports.deleteService = async (req, res) => {
   try {
-    const userId = req.user.id;
 
     const { id } = req.params;
 
-    const shopId = await getShopIdByUser(userId);
+    const shopId = await getShopIdByUser(req.user);
 
     const result = await manajemenLayananService.deleteService(id, shopId);
 

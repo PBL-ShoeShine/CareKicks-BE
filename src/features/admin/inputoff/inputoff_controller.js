@@ -2,7 +2,7 @@ const inputoffService = require("./inputoff_service");
 
 exports.createOfflineOrder = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.id_user;
 
     const {
       nama_customer,
@@ -82,6 +82,7 @@ exports.createOfflineOrder = async (req, res) => {
 
     const result = await inputoffService.createOfflineOrder({
       userId,
+      authUser: req.user,
       nama_customer,
       nomor_telepon,
       jenis_sepatu,
@@ -110,7 +111,7 @@ exports.createOfflineOrder = async (req, res) => {
 
 exports.getServices = async (req, res) => {
   try {
-    const result = await inputoffService.getServices(req.user.id);
+    const result = await inputoffService.getServices(req.user);
 
     return res.status(200).json({
       success: true,

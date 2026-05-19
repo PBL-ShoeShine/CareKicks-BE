@@ -1,5 +1,6 @@
 const supabase = require("../../../core/config/supabase");
 const crypto = require("crypto");
+const shopAccess = require("../../../core/services/shop-access.service");
 
 exports.createOfflineOrder = async (inputData) => {
   const {
@@ -41,25 +42,10 @@ exports.createOfflineOrder = async (inputData) => {
       foto_sebelum_url = publicUrlData.publicUrl;
     }
 
-    // Step 1: Get user's shop
-    const { data: shopData, error: shopError } = await supabase
-      .from("shops_admin")
-      .select(
-        `
-        id_shops_admin,
-        shops (
-          id_shops
-        )
-      `,
-      )
-      .eq("id_user", userId)
-      .single();
-
-    if (shopError || !shopData) {
-      throw new Error("Shop data not found for this admin user");
-    }
-
-    const id_shops = shopData.shops[0].id_shops;
+    // Ambil toko dari relasi login admin/staff, bukan dari body request.
+    const id_shops = await shopAccess.getShopIdForUser(
+      inputData.authUser || { id: userId, id_user: userId },
+    );
 
     // Step 2: Check if customer exists, if not create one
     let customerId;
@@ -234,31 +220,13 @@ exports.createOfflineOrder = async (inputData) => {
   }
 };
 
-exports.getServices = async (userId) => {
-  const { data: shopAdmin, error: shopAdminError } = await supabase
-    .from("shops_admin")
-    .select("id_shops_admin")
-    .eq("id_user", userId)
-    .maybeSingle();
-
-  if (shopAdminError || !shopAdmin) {
-    throw new Error("Admin toko tidak ditemukan");
-  }
-
-  const { data: shop, error: shopError } = await supabase
-    .from("shops")
-    .select("id_shops")
-    .eq("id_shops_admin", shopAdmin.id_shops_admin)
-    .maybeSingle();
-
-  if (shopError || !shop) {
-    throw new Error("Toko tidak ditemukan untuk admin ini");
-  }
+exports.getServices = async (authUser) => {
+  const shopId = await shopAccess.getShopIdForUser(authUser);
 
   const { data, error } = await supabase
     .from("services")
     .select("*")
-    .eq("id_shops", shop.id_shops)
+    .eq("id_shops", shopId)
     .eq("is_active", true)
     .order("id_services", { ascending: true });
 

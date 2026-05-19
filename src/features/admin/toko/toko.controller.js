@@ -2,9 +2,7 @@ const tokoService = require("./toko.service");
 
 exports.getShopProfile = async (req, res) => {
 	try {
-		const userId = req.user.id;
-
-		const profile = await tokoService.getShopProfile(userId);
+		const profile = await tokoService.getShopProfile(req.user);
 
 		return res.status(200).json({
 			success: true,
@@ -22,9 +20,7 @@ exports.getShopProfile = async (req, res) => {
 
 exports.getOperatingHours = async (req, res) => {
 	try {
-		const userId = req.user.id;
-
-		const hours = await tokoService.getOperatingHours(userId);
+		const hours = await tokoService.getOperatingHours(req.user);
 
 		return res.status(200).json({
 			success: true,
@@ -50,7 +46,6 @@ const parseTimeToMinutes = (value) => {
 
 exports.updateShopProfile = async (req, res) => {
 	try {
-		const userId = req.user.id;
 		const {
 			nm_toko,
 			desk_toko,
@@ -108,7 +103,7 @@ exports.updateShopProfile = async (req, res) => {
 			});
 		}
 
-		const updated = await tokoService.updateShopProfile(userId, {
+		const updated = await tokoService.updateShopProfile(req.user, {
 			nm_toko,
 			desk_toko,
 			alamat_toko,
@@ -135,7 +130,6 @@ exports.updateShopProfile = async (req, res) => {
 
 exports.updateOperatingHours = async (req, res) => {
 	try {
-		const userId = req.user.id;
 		const { hours } = req.body || {};
 
 		if (!Array.isArray(hours) || hours.length !== 7) {
@@ -188,7 +182,7 @@ exports.updateOperatingHours = async (req, res) => {
 			};
 		});
 
-		const updated = await tokoService.updateOperatingHours(userId, normalized);
+		const updated = await tokoService.updateOperatingHours(req.user, normalized);
 
 		return res.status(200).json({
 			success: true,

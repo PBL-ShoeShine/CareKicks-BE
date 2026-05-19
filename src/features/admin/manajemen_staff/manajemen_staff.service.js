@@ -1,130 +1,213 @@
+const bcrypt = require("bcrypt");
 const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
+
+const STAFF_SELECT = `
+  id_staff,
+  id_user,
+  id_staff_profile,
+  staff_profile!inner (
+    id_staff_profile,
+    nama,
+    email,
+    no_hp,
+    id_shops,
+    role,
+    status
+  )
+`;
+
+const normalizeEmail = (email) => email?.trim().toLowerCase();
 
 class StaffService {
-  /**
-   * 1. Tambah Staff Baru (ID User Incremental)
-   */
-  async registerStaff(payload) {
-    // Terima password dan status
-    const { nama, email, no_hp, id_shops, role, password, status } = payload;
+  async registerStaff(authUser, payload) {
+    const { nama, no_hp, role, password } = payload;
+    const email = normalizeEmail(payload.email);
 
-    // STEP 1: Cari id_user terbesar yang ada di tabel staff
-    const { data: lastStaffs, error: fetchError } = await supabase
-      .from("staff")
+    if (!nama?.trim() || !email || !no_hp?.trim() || !password) {
+      throw new Error("Nama, email, no HP, dan password wajib diisi");
+    }
+
+    if (!email.includes("@")) {
+      throw new Error("Format email tidak valid");
+    }
+
+    if (password.length < 6) {
+      throw new Error("Password minimal 6 karakter");
+    }
+
+    const shopAccessData = await shopAccess.getShopForUser(authUser);
+    const idShops = shopAccessData.id_shops;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const username = email.split("@")[0];
+
+    const { data: existingUser, error: existingError } = await supabase
+      .from("users")
       .select("id_user")
-      .order("id_user", { ascending: false })
-      .limit(1);
+      .eq("email", email)
+      .maybeSingle();
 
-    if (fetchError) throw fetchError;
+    if (existingError) throw new Error(existingError.message);
+    if (existingUser) throw new Error("Email sudah terdaftar");
 
-    const nextIdUser = (lastStaffs && lastStaffs.length > 0) 
-      ? lastStaffs[0].id_user + 1 
-      : 1;
-
-    // STEP 2: Simpan ke staff_profile beserta password dan status
-    const { data: profileData, error: profileError } = await supabase
-      .from("staff_profile")
-      .insert([{ nama, email, no_hp, id_shops, role, password, status }])
-      .select("id_staff_profile")
+    // Users adalah sumber akun login. id_user dari insert ini dipakai oleh tabel staff.
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .insert({
+        username,
+        nama: nama.trim(),
+        no_hp: no_hp.trim(),
+        email,
+        password: hashedPassword,
+        jenis_role: "staff",
+      })
+      .select("id_user, username, nama, email, no_hp, jenis_role")
       .single();
 
-    if (profileError) throw profileError;
+    if (userError) throw new Error(userError.message);
 
-    // STEP 3: Hubungkan ke tabel staff
-    const { data: staffData, error: staffError } = await supabase
-      .from("staff")
-      .insert([
-        {
+    let profileData;
+
+    try {
+      const { data: insertedProfile, error: profileError } = await supabase
+        .from("staff_profile")
+        .insert({
+          nama: nama.trim(),
+          email,
+          no_hp: no_hp.trim(),
+          id_shops: idShops,
+          role,
+          status: payload.status || "AKTIF",
+        })
+        .select("id_staff_profile, nama, email, no_hp, id_shops, role, status")
+        .single();
+
+      if (profileError) throw new Error(profileError.message);
+      profileData = insertedProfile;
+
+      const { data: staffData, error: staffError } = await supabase
+        .from("staff")
+        .insert({
           id_staff_profile: profileData.id_staff_profile,
-          id_user: nextIdUser 
-        },
-      ])
-      .select()
-      .single();
+          id_user: userData.id_user,
+        })
+        .select(STAFF_SELECT)
+        .single();
 
-    if (staffError) throw staffError;
+      if (staffError) throw new Error(staffError.message);
 
-    return { ...staffData, ...profileData, role, status };
+      return staffData;
+    } catch (error) {
+      // Supabase client tidak memakai transaction di sini, jadi rollback manual untuk menghindari akun yatim.
+      if (profileData?.id_staff_profile) {
+        await supabase
+          .from("staff_profile")
+          .delete()
+          .eq("id_staff_profile", profileData.id_staff_profile);
+      }
+      await supabase.from("users").delete().eq("id_user", userData.id_user);
+      throw error;
+    }
   }
 
-  /**
-   * 2. Ambil Semua Staff
-   */
-  async getAllStaff(search) {
-    // PERHATIAN: Gunakan !inner setelah nama relasi (staff_profile!inner)
-    // Ini memastikan Supabase hanya mengembalikan baris yang cocok dengan kondisi filter di dalamnya.
-    // Tambahkan juga field 'status' di select
-    let query = supabase.from("staff").select(`
-      id_staff,
-      id_user,
-      id_staff_profile,
-      staff_profile!inner (
-        id_staff_profile,
-        nama,
-        email,
-        no_hp,
-        id_shops,
-        role,
-        status
-      )
-    `);
+  async getAllStaff(authUser, search) {
+    const shopId = await shopAccess.getShopIdForUser(authUser);
 
-    if (search) {
-      // Logika search: mencari di kolom 'nama' ATAU 'role'
-      // Catatan: Jika kolom role di Supabase diset sebagai text[] (array), 
-      // gunakan operator .cs (contains). Jika berupa JSON/String biasa, gunakan .ilike
-      // Asumsi tipe data role adalah text[] atau teks biasa yang dilempar dari front-end.
-      query = query.or(`nama.ilike.%${search}%,role.ilike.%${search}%`, { foreignTable: "staff_profile" });
+    let query = supabase
+      .from("staff")
+      .select(STAFF_SELECT)
+      .eq("staff_profile.id_shops", shopId);
+
+    if (search?.trim()) {
+      const keyword = search.trim();
+      query = query.or(`nama.ilike.%${keyword}%,email.ilike.%${keyword}%`, {
+        foreignTable: "staff_profile",
+      });
     }
 
     const { data, error } = await query.order("id_staff", { ascending: false });
-    if (error) throw error;
-    return data;
+    if (error) throw new Error(error.message);
+    return data || [];
   }
 
-  /**
-   * 3. Ambil Detail Staff
-   */
-  async getStaffById(id_profile) {
+  async getStaffById(authUser, idProfile) {
+    const shopId = await shopAccess.getShopIdForUser(authUser);
+
     const { data, error } = await supabase
       .from("staff")
-      .select(`
-        *,
-        staff_profile (*)
-      `)
-      .eq("id_staff_profile", id_profile)
+      .select(STAFF_SELECT)
+      .eq("id_staff_profile", idProfile)
+      .eq("staff_profile.id_shops", shopId)
       .single();
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
   }
 
-  /**
-   * 4. Update Profile Staff
-   */
-  async updateStaffProfile(id_profile, updateData) {
+  async updateStaffProfile(authUser, idProfile, updateData) {
+    const existing = await this.getStaffById(authUser, idProfile);
+    const profileUpdate = {};
+    const userUpdate = {};
+
+    ["nama", "email", "no_hp", "role", "status"].forEach((field) => {
+      if (updateData[field] !== undefined) profileUpdate[field] = updateData[field];
+    });
+
+    if (profileUpdate.email) profileUpdate.email = normalizeEmail(profileUpdate.email);
+
+    if (profileUpdate.nama !== undefined) userUpdate.nama = profileUpdate.nama;
+    if (profileUpdate.email !== undefined) userUpdate.email = profileUpdate.email;
+    if (profileUpdate.no_hp !== undefined) userUpdate.no_hp = profileUpdate.no_hp;
+
     const { data, error } = await supabase
       .from("staff_profile")
-      .update(updateData) // Akan otomatis mengupdate field apapun yang dikirim (termasuk status/role baru)
-      .eq("id_staff_profile", id_profile)
-      .select()
+      .update(profileUpdate)
+      .eq("id_staff_profile", idProfile)
+      .eq("id_shops", existing.staff_profile.id_shops)
+      .select("id_staff_profile, nama, email, no_hp, id_shops, role, status")
       .single();
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
+
+    if (Object.keys(userUpdate).length > 0) {
+      const { error: userError } = await supabase
+        .from("users")
+        .update(userUpdate)
+        .eq("id_user", existing.id_user);
+
+      if (userError) throw new Error(userError.message);
+    }
+
     return data;
   }
 
-  /**
-   * 5. Hapus Staff
-   */
-  async deleteStaff(id_profile) {
-    const { error } = await supabase
+  async deleteStaff(authUser, idProfile) {
+    const existing = await this.getStaffById(authUser, idProfile);
+
+    const { error: staffError } = await supabase
+      .from("staff")
+      .delete()
+      .eq("id_staff_profile", idProfile);
+
+    if (staffError) throw new Error(staffError.message);
+
+    const { error: profileError } = await supabase
       .from("staff_profile")
       .delete()
-      .eq("id_staff_profile", id_profile);
+      .eq("id_staff_profile", idProfile)
+      .eq("id_shops", existing.staff_profile.id_shops);
 
-    if (error) throw error;
-    return { message: "Data staff dan profil berhasil dihapus" };
+    if (profileError) throw new Error(profileError.message);
+
+    const { error: userError } = await supabase
+      .from("users")
+      .delete()
+      .eq("id_user", existing.id_user)
+      .eq("jenis_role", "staff");
+
+    if (userError) throw new Error(userError.message);
+
+    return { message: "Data staff, profil, dan akun user berhasil dihapus" };
   }
 }
 

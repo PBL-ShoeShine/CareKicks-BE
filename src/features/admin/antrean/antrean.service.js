@@ -1,4 +1,5 @@
 const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
 
 const ANTREAN_SELECT = `
   id_orders,
@@ -17,34 +18,9 @@ const ANTREAN_SELECT = `
   )
 `;
 
-// Helper: dapat id_shops dari id_user (lewat shops_admin)
-const getIdShops = async (idUser) => {
-  // Langkah 1: dapat id_shops_admin dari id_user
-  const { data: adminData, error: adminError } = await supabase
-    .from("shops_admin")
-    .select("id_shops_admin")
-    .eq("id_user", idUser)
-    .single();
-
-  if (adminError) throw new Error("Gagal mengambil data admin: " + adminError.message);
-  if (!adminData) throw new Error("Admin tidak ditemukan");
-
-  // Langkah 2: dapat id_shops dari id_shops_admin
-  const { data: shopsData, error: shopsError } = await supabase
-    .from("shops")
-    .select("id_shops")
-    .eq("id_shops_admin", adminData.id_shops_admin)
-    .single();
-
-  if (shopsError) throw new Error("Gagal mengambil data toko: " + shopsError.message);
-  if (!shopsData?.id_shops) throw new Error("Toko tidak ditemukan");
-
-  return shopsData.id_shops;
-};
-
 // Ambil semua antrean, filter by status (opsional)
-exports.getAllAntrean = async (idUser, status) => {
-  const idShops = await getIdShops(idUser);
+exports.getAllAntrean = async (authUser, status) => {
+  const idShops = await shopAccess.getShopIdForUser(authUser);
 
   let query = supabase
     .from("orders")
@@ -60,8 +36,8 @@ exports.getAllAntrean = async (idUser, status) => {
 };
 
 // Ambil total antrean aktif + selisih kemarin
-exports.getTotalAntrean = async (idUser) => {
-  const idShops = await getIdShops(idUser);
+exports.getTotalAntrean = async (authUser) => {
+  const idShops = await shopAccess.getShopIdForUser(authUser);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -94,18 +70,22 @@ exports.getTotalAntrean = async (idUser) => {
 };
 
 // Ambil detail satu order
-exports.getAntreanById = async (idOrder) => {
+exports.getAntreanById = async (authUser, idOrder) => {
+  const idShops = await shopAccess.getShopIdForUser(authUser);
+
   const { data, error } = await supabase
     .from("orders")
     .select(ANTREAN_SELECT)
     .eq("id_orders", idOrder)
+    .eq("id_shops", idShops)
     .single();
   if (error) throw new Error(error.message);
   return data;
 };
 
 // Update status order: pending -> diproses -> selesai
-exports.updateStatus = async (idOrder, status) => {
+exports.updateStatus = async (authUser, idOrder, status) => {
+  const idShops = await shopAccess.getShopIdForUser(authUser);
   const statusValid = ["pending", "diproses", "selesai"];
   if (!statusValid.includes(status)) {
     throw new Error(`Status tidak valid. Pilihan: ${statusValid.join(", ")}`);
@@ -115,6 +95,7 @@ exports.updateStatus = async (idOrder, status) => {
     .from("orders")
     .update({ status_order: status })
     .eq("id_orders", idOrder)
+    .eq("id_shops", idShops)
     .select(ANTREAN_SELECT)
     .single();
   if (error) throw new Error(error.message);

@@ -67,7 +67,7 @@ exports.getAllTracking = async (shopId, search = "", _status = "") => {
 	return data;
 };
 
-exports.getTrackingDetail = async (orderId) => {
+exports.getTrackingDetail = async (orderId, shopId) => {
 	const { data: order, error: orderError } = await supabase
 		.from("orders")
 		.select(
@@ -79,6 +79,7 @@ exports.getTrackingDetail = async (orderId) => {
     `,
 		)
 		.eq("id_orders", orderId)
+		.eq("id_shops", shopId)
 		.single();
 
 	if (orderError) throw orderError;
@@ -105,7 +106,7 @@ exports.getTrackingDetail = async (orderId) => {
 	};
 };
 
-exports.getLatestLocation = async (orderId) => {
+exports.getLatestLocation = async (orderId, shopId) => {
 	const { data: order, error: orderError } = await supabase
 		.from("orders")
 		.select(
@@ -118,6 +119,7 @@ exports.getLatestLocation = async (orderId) => {
     `,
 		)
 		.eq("id_orders", orderId)
+		.eq("id_shops", shopId)
 		.single();
 
 	if (orderError) throw orderError;
@@ -137,8 +139,17 @@ exports.getLatestLocation = async (orderId) => {
 	};
 };
 
-exports.updateLocation = async (orderId, payload) => {
+exports.updateLocation = async (orderId, shopId, payload) => {
 	const { latitude, longitude, id_staff, status } = payload;
+
+	const { error: orderError } = await supabase
+		.from("orders")
+		.select("id_orders", { head: true })
+		.eq("id_orders", orderId)
+		.eq("id_shops", shopId)
+		.single();
+
+	if (orderError) throw orderError;
 
 	const { error: logError } = await supabase.from("tracking_logs").insert([
 		{

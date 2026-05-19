@@ -1,34 +1,13 @@
 const trackingService = require("./tracking.service");
-const supabase = require("../../../core/config/supabase");
+const shopAccess = require("../../../core/services/shop-access.service");
 
-// Helper to get shop id
-const getShopIdByUser = async (userId) => {
-	const { data, error } = await supabase
-		.from("shops_admin")
-		.select(
-			`
-      id_shops_admin,
-      shops (
-        id_shops
-      )
-    `,
-		)
-		.eq("id_user", userId)
-		.single();
-
-	if (error || !data || !data.shops || data.shops.length === 0) {
-		throw new Error("Shop not found for this admin user");
-	}
-
-	return data.shops[0].id_shops;
-};
+const getShopIdByUser = (authUser) => shopAccess.getShopIdForUser(authUser);
 
 exports.getAllTracking = async (req, res) => {
 	try {
-		const userId = req.user.id;
 		const { search = "", status = "" } = req.query;
 
-		const shopId = await getShopIdByUser(userId);
+		const shopId = await getShopIdByUser(req.user);
 
 		const orders = await trackingService.getAllTracking(shopId, search, status);
 
@@ -50,7 +29,8 @@ exports.getTrackingDetail = async (req, res) => {
 	try {
 		const { id_orders } = req.params;
 
-		const detail = await trackingService.getTrackingDetail(id_orders);
+		const shopId = await getShopIdByUser(req.user);
+		const detail = await trackingService.getTrackingDetail(id_orders, shopId);
 
 		return res.status(200).json({
 			success: true,
@@ -70,7 +50,8 @@ exports.getLatestLocation = async (req, res) => {
 	try {
 		const { id_orders } = req.params;
 
-		const detail = await trackingService.getLatestLocation(id_orders);
+		const shopId = await getShopIdByUser(req.user);
+		const detail = await trackingService.getLatestLocation(id_orders, shopId);
 
 		return res.status(200).json({
 			success: true,
@@ -88,7 +69,6 @@ exports.getLatestLocation = async (req, res) => {
 
 exports.updateTrackingStatus = async (req, res) => {
 	try {
-		const userId = req.user.id;
 		const { id_orders } = req.params;
 		const {
 			status,
@@ -109,7 +89,7 @@ exports.updateTrackingStatus = async (req, res) => {
 			});
 		}
 
-		const shopId = await getShopIdByUser(userId);
+		const shopId = await getShopIdByUser(req.user);
 
 		let fotoUrl = null;
 		if (file) {
@@ -154,7 +134,8 @@ exports.updateLocation = async (req, res) => {
 			});
 		}
 
-		await trackingService.updateLocation(id_orders, {
+		const shopId = await getShopIdByUser(req.user);
+		await trackingService.updateLocation(id_orders, shopId, {
 			latitude: parseFloat(latitude),
 			longitude: parseFloat(longitude),
 			id_staff,
