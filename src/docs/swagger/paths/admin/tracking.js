@@ -2,8 +2,9 @@ module.exports = {
 	"/admin/tracking": {
 		get: {
 			tags: ["Admin Tracking"],
-			summary: "List tracking orders (selesai cuci)",
-			description: "Only returns orders with status_order = 'selesai'.",
+			summary: "List tracking orders (active pickup/delivery)",
+			description:
+				"Only returns active tracking orders with status_order in menunggu_jemput, sedang_dijemput, siap_diantar, sedang_diantar.",
 			security: [{ bearerAuth: [] }],
 			parameters: [
 				{
@@ -26,8 +27,8 @@ module.exports = {
 									{
 										id_orders: 101,
 										kode_order: "ORD20260516ABCD",
-										status_order: "selesai",
-										metode_pengambilan: "delivery",
+										status_order: "sedang_dijemput",
+										metode_pengambilan: "pickup",
 										tgl_order: "2026-05-16T08:15:30.000Z",
 										customers: { nama: "Budi" },
 										detail_orders: [
@@ -93,7 +94,7 @@ module.exports = {
 										id_shops: 2,
 										id_staff: 5,
 										tgl_order: "2026-05-16T08:15:30.000Z",
-										status_order: "selesai",
+										status_order: "sedang_diantar",
 										metode_order: "offline",
 										metode_bayar: "cash",
 										upload_bkt_byr: null,
@@ -145,11 +146,11 @@ module.exports = {
 									tracking_logs: [
 										{
 											id_tracking_logs: 9001,
-											status: "siap_diantar",
+											status: "sedang_diantar",
 											id_staff: 5,
 											id_orders: 101,
 											waktu: "2026-05-16T09:00:00.000Z",
-											keterangan: "Siap dijemput kurir",
+											keterangan: "Kurir mulai mengantar",
 											latitude: -6.2,
 											longitude: 106.8,
 											staff: {
@@ -204,7 +205,7 @@ module.exports = {
 								status: {
 									type: "string",
 									description:
-										"Tracking status (pickup/delivery). If value is one of pending/diproses/selesai, it updates order.status_order (wash status).",
+										"Tracking status. Pickup: menunggu_jemput, sedang_dijemput, diterima_toko. Delivery: siap_diantar, sedang_diantar, selesai. Wash: pending, diproses. Pickup statuses only for metode_pengambilan=pickup, delivery statuses only for metode_pengambilan=delivery, and transitions must follow the flow.",
 								},
 								keterangan: { type: "string" },
 								latitude: { type: "number" },
@@ -230,8 +231,8 @@ module.exports = {
 							},
 						},
 						example: {
-							status: "siap_diantar",
-							keterangan: "Siap dijemput kurir",
+							status: "sedang_diantar",
+							keterangan: "Kurir mulai mengantar",
 							latitude: -6.2,
 							longitude: 106.8,
 							id_staff: 5,
@@ -259,7 +260,7 @@ module.exports = {
 									id_shops: 2,
 									id_staff: 5,
 									tgl_order: "2026-05-16T08:15:30.000Z",
-									status_order: "selesai",
+									status_order: "sedang_diantar",
 									metode_order: "offline",
 									metode_bayar: "cash",
 									upload_bkt_byr: null,
@@ -275,6 +276,87 @@ module.exports = {
 									foto_validasi: null,
 									metode_pengambilan: "delivery",
 								},
+							},
+						},
+					},
+				},
+				400: {
+					description: "Bad request",
+					content: {
+						"application/json": {
+							schema: { $ref: "#/components/schemas/ErrorResponse" },
+						},
+					},
+				},
+				401: {
+					description: "Unauthorized",
+					content: {
+						"application/json": {
+							schema: { $ref: "#/components/schemas/ErrorResponse" },
+						},
+					},
+				},
+				500: {
+					description: "Server error",
+					content: {
+						"application/json": {
+							schema: { $ref: "#/components/schemas/ErrorResponse" },
+						},
+					},
+				},
+			},
+		},
+	},
+	"/admin/tracking/{id_orders}/location": {
+		patch: {
+			tags: ["Admin Tracking"],
+			summary: "Update courier location only",
+			description:
+				"Updates tracking_logs with the latest courier latitude/longitude without changing order status.",
+			security: [{ bearerAuth: [] }],
+			parameters: [
+				{
+					name: "id_orders",
+					in: "path",
+					required: true,
+					schema: { type: "integer" },
+				},
+			],
+			requestBody: {
+				required: true,
+				content: {
+					"application/json": {
+						schema: {
+							type: "object",
+							required: ["latitude", "longitude"],
+							properties: {
+								latitude: { type: "number" },
+								longitude: { type: "number" },
+								id_staff: { type: "integer" },
+								status: {
+									type: "string",
+									description: "Optional current status to log.",
+								},
+							},
+						},
+						example: {
+							latitude: -6.2,
+							longitude: 106.8,
+							id_staff: 5,
+							status: "sedang_diantar",
+						},
+					},
+				},
+			},
+			responses: {
+				200: {
+					description: "Location updated successfully",
+					content: {
+						"application/json": {
+							schema: { $ref: "#/components/schemas/SuccessResponse" },
+							example: {
+								success: true,
+								message: "Location updated successfully",
 							},
 						},
 					},

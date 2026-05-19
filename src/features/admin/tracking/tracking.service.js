@@ -1,11 +1,32 @@
 const supabase = require("../../../core/config/supabase");
 
-const WASH_STATUSES = new Set(["pending", "diproses", "selesai"]);
-const DELIVERY_STATUSES = new Set(["siap_diantar", "diantar", "diterima"]);
-const PICKUP_STATUSES = new Set(["siap_diambil", "diambil"]);
+const PICKUP_STATUSES = new Set([
+	"menunggu_jemput",
+	"sedang_dijemput",
+	"diterima_toko",
+]);
+const WASH_STATUSES = new Set(["pending", "diproses"]);
+const DELIVERY_STATUSES = new Set([
+	"siap_diantar",
+	"sedang_diantar",
+	"selesai",
+]);
+
+const PICKUP_FLOW = ["menunggu_jemput", "sedang_dijemput", "diterima_toko"];
+const DELIVERY_FLOW = ["siap_diantar", "sedang_diantar", "selesai"];
 
 const normalizeStatus = (value) =>
 	typeof value === "string" ? value.trim().toLowerCase() : value;
+
+const isValidFlowTransition = (currentStatus, nextStatus, flow) => {
+	const currentIndex = flow.indexOf(currentStatus);
+	const nextIndex = flow.indexOf(nextStatus);
+
+	if (nextIndex < 0) return false;
+	if (currentIndex < 0) return nextIndex === 0;
+
+	return nextIndex === currentIndex || nextIndex === currentIndex + 1;
+};
 
 exports.getAllTracking = async (shopId, search = "", _status = "") => {
 	let query = supabase
@@ -29,7 +50,12 @@ exports.getAllTracking = async (shopId, search = "", _status = "") => {
     `,
 		)
 		.eq("id_shops", shopId)
-		.eq("status_order", "selesai");
+		.in("status_order", [
+			"menunggu_jemput",
+			"sedang_dijemput",
+			"siap_diantar",
+			"sedang_diantar",
+		]);
 
 	if (search) {
 		query = query.ilike("kode_order", `%${search}%`);
@@ -80,54 +106,54 @@ exports.getTrackingDetail = async (orderId) => {
 };
 
 exports.getLatestLocation = async (orderId) => {
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .select(
-      `
+	const { data: order, error: orderError } = await supabase
+		.from("orders")
+		.select(
+			`
       id_orders,
       kode_order,
       status_order,
       customers (nama, latitude, longitude),
       shops (lat_toko, long_toko)
     `,
-    )
-    .eq("id_orders", orderId)
-    .single();
+		)
+		.eq("id_orders", orderId)
+		.single();
 
-  if (orderError) throw orderError;
+	if (orderError) throw orderError;
 
-  const { data: latestLog, error: logsError } = await supabase
-    .from("tracking_logs")
-    .select("*")
-    .eq("id_orders", orderId)
-    .order("waktu", { ascending: false })
-    .limit(1)
-    .single();
+	const { data: latestLog, error: logsError } = await supabase
+		.from("tracking_logs")
+		.select("*")
+		.eq("id_orders", orderId)
+		.order("waktu", { ascending: false })
+		.limit(1)
+		.single();
 
-  // If latestLog is empty, it's not an error, just no logs yet
-  return {
-    order,
-    latest_log: latestLog || null,
-  };
+	// If latestLog is empty, it's not an error, just no logs yet
+	return {
+		order,
+		latest_log: latestLog || null,
+	};
 };
 
 exports.updateLocation = async (orderId, payload) => {
-  const { latitude, longitude, id_staff, status } = payload;
+	const { latitude, longitude, id_staff, status } = payload;
 
-  const { error: logError } = await supabase.from("tracking_logs").insert([
-    {
-      id_orders: orderId,
-      status: status || "sedang mengantar",
-      keterangan: "Update lokasi kurir",
-      latitude: latitude,
-      longitude: longitude,
-      id_staff: id_staff,
-      waktu: new Date().toISOString(),
-    },
-  ]);
+	const { error: logError } = await supabase.from("tracking_logs").insert([
+		{
+			id_orders: orderId,
+			status: status || "sedang_diantar",
+			keterangan: "Update lokasi kurir",
+			latitude: latitude,
+			longitude: longitude,
+			id_staff: id_staff,
+			waktu: new Date().toISOString(),
+		},
+	]);
 
-  if (logError) throw logError;
-  return { success: true };
+	if (logError) throw logError;
+	return { success: true };
 };
 
 exports.updateStatus = async (orderId, shopId, payload) => {
@@ -164,10 +190,6 @@ exports.updateStatus = async (orderId, shopId, payload) => {
 		);
 		const orderStatus = normalizeStatus(orderInfo.status_order);
 
-		if (orderStatus !== "selesai") {
-			throw new Error("Order belum selesai dicuci.");
-		}
-
 		if (
 			DELIVERY_STATUSES.has(normalizedStatus) &&
 			metodePengambilan !== "delivery"
@@ -183,9 +205,24 @@ exports.updateStatus = async (orderId, shopId, payload) => {
 		) {
 			throw new Error("Status pickup hanya untuk metode_pengambilan pickup.");
 		}
+
+		const flow = PICKUP_STATUSES.has(normalizedStatus)
+			? PICKUP_FLOW
+			: DELIVERY_FLOW;
+
+		if (!isValidFlowTransition(orderStatus, normalizedStatus, flow)) {
+			throw new Error(
+				`Transisi status tidak valid: ${orderStatus || "-"} -> ${normalizedStatus}`,
+			);
+		}
 	}
 
-	if (normalizedStatus && WASH_STATUSES.has(normalizedStatus)) {
+	if (
+		normalizedStatus &&
+		(WASH_STATUSES.has(normalizedStatus) ||
+			PICKUP_STATUSES.has(normalizedStatus) ||
+			DELIVERY_STATUSES.has(normalizedStatus))
+	) {
 		orderUpdateData.status_order = normalizedStatus;
 	}
 
