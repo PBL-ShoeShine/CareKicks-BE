@@ -16,7 +16,7 @@ exports.getDetailByQR = async (qrText) => {
     }
   }
 
-  // QUERY BERSIH: Semua komentar teks merusak sudah dihapus total
+  // QUERY BERSIH
   let query = supabase
     .from("orders")
     .select(`
@@ -38,6 +38,7 @@ exports.getDetailByQR = async (qrText) => {
     `)
     .eq("kode_order", targetSearchText); 
 
+  // EKSEKUSI QUERY DENGAN AWAIT
   const { data, error } = await query;
 
   if (error) {
@@ -50,7 +51,26 @@ exports.getDetailByQR = async (qrText) => {
     throw err;
   }
   
-  return data[0];
+  // Ambil objek order pertama
+  const orderResult = data[0];
+
+  // SINKRONISASI ALAMAT: Jika alamat_pengantaran bawaan kosong, backup pakai alamat customer
+  if (!orderResult.alamat_pengantaran && orderResult.customers) {
+    orderResult.alamat_pengantaran = orderResult.customers.alamat;
+  }
+
+  // Sebaliknya, jika di Flutter memanggil customers.alamat tapi kosong, isi dengan alamat_pengantaran
+  if (orderResult.customers && !orderResult.customers.alamat) {
+    orderResult.customers.alamat = orderResult.alamat_pengantaran;
+  }
+  
+  console.log("[DATA DIKIRIM KE FLUTTER]:", {
+    kode_order: orderResult.kode_order,
+    alamat_pengantaran: orderResult.alamat_pengantaran,
+    customer_alamat: orderResult.customers ? orderResult.customers.alamat : 'Tidak ada'
+  });
+
+  return orderResult;
 };
 
 // FUNGSI UPDATE STATUS - MURNI HANYA UPDATE TABEL ORDERS SAJA

@@ -1,45 +1,38 @@
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors"); 
 const multer = require("multer");
 const listEndpoints = require("express-list-endpoints");
 const swaggerUi = require("swagger-ui-express");
-const openapi = require("./docs/swagger");
+const openapi = require("./docs/swagger"); // Mengarah ke konfigurasi swagger milikmu
 
 const app = express();
 
-// Middleware
-const cors = require("cors"); 
-const listEndpoints = require("express-list-endpoints");
-
-const app = express();
-
-app.use(cors()); // Aktifkan akses lintas perangkat
+// ====== 1. MIDDLEWARE UTAMA ======
+app.use(cors()); // Aktifkan akses lintas perangkat (Biar HP fisik aman)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging middleware
+// Request logging middleware (Biar kelihatan request apa saja yang masuk)
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
-// Multer configuration for file uploads
+// Konfigurasi Multer untuk handle upload file gambar/foto ke memori
 const upload = multer({ storage: multer.memoryStorage() });
+app.upload = upload; // Simpan middleware upload di app agar bisa dipakai di routes
 
+// ====== 2. ROUTING UTAMA ======
 const routes = require("./routes");
-app.use("/api/v1", routes); // Jalur utama API
+app.use("/api/v1", routes); // Jalur utama API (Semua rute diawali dengan /api/v1)
 
-// register routes
-//  Semua rute diawali dengan /api/v1
-app.use("/api/v1", routes);
-
-// Swagger docs
+// ====== 3. DOCUMENTATION SYSTEM ======
+// Halaman Swagger UI interaktif diakses via http://10.85.113.20:3000/api-docs
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
-// store upload middleware in app for use in routes
-app.upload = upload;
-
-// 404 Handler
+// ====== 4. ERROR & 404 HANDLER ======
+// 404 Handler jika rute tidak ditemukan
 app.use((req, res, next) => {
   res.status(404).json({
     success: false,
@@ -47,14 +40,12 @@ app.use((req, res, next) => {
   });
 });
 
-// Global Error Handler
+// Global Error Handler (Menangkap crash tersembunyi agar server gak mati)
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err);
 
   if (err instanceof multer.MulterError) {
-    const message =
-      err.code === "LIMIT_FILE_SIZE" ? "Ukuran foto maksimal 5MB" : err.message;
-
+    const message = err.code === "LIMIT_FILE_SIZE" ? "Ukuran foto maksimal 5MB" : err.message;
     return res.status(400).json({
       success: false,
       message,
@@ -67,21 +58,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-// start server
-app.listen(process.env.PORT, () => {
-	console.log(`\nServer jalan di http://localhost:${process.env.PORT}`);
-
-	console.log("\n===== LIST API =====");
-
-	console.table(
-		listEndpoints(app).map((route) => ({
-			METHODS: route.methods.join(", "),
-			PATH: route.path,
-		})),
-	);
-});
-app.listen(process.env.PORT, '0.0.0.0', () => {
-  console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${process.env.PORT}`);
-  console.log("===== DAFTAR RUTE AKTIF =====");
+// ====== 5. MENYALAKAN SERVER ======
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${PORT}`);
+  console.log(`📖 Dokumentasi Swagger aktif di: http://10.85.113.20:${PORT}/api-docs`);
+  console.log("\n===== DAFTAR RUTE AKTIF =====");
   console.table(listEndpoints(app).map(r => ({ METHODS: r.methods.join(", "), PATH: r.path })));
 });

@@ -47,6 +47,10 @@ const openapi = {
       name: "Admin Manajemen Staff",
       description: "Manajemen data staff",
     },
+    {
+      name: "Admin Pemindai",
+      description: "Admin QR Code scanner for orders",
+    },
   ],
   components,
   paths,
