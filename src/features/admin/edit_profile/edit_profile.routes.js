@@ -1,14 +1,9 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const editProfileController = require("./edit_profile.controller");
+// Pastikan nama filenya sudah sesuai dengan yang baru
+const controller = require('./edit_profile.controller'); 
 
-// Route untuk update nama & no_hp, serta trigger email baru (PUT)
-router.put("/update", editProfileController.updateProfile);
-
-// Route untuk verifikasi tautan yang diklik dari email (GET)
-router.get("/verify-email", editProfileController.verifyEmail);
-
-// Route untuk ubah kata sandi (PUT)
-router.put("/change-password", editProfileController.changePassword);
+router.patch('/update', controller.updateProfile);
+router.put('/change-password', controller.changePassword);
 
 module.exports = router;

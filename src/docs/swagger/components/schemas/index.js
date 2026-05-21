@@ -8,6 +8,7 @@ const manajemenStaffSchemas = require("./manajemen_staff");
 const dashboardSchemas = require("./dashboard");
 const manajemenLayananSchemas = require("./manajemen_layanan");
 const pemindaiSchemas = require("./pemindai");
+const editProfileSchemas = require("./edit_profile");
 
 module.exports = {
   ...sharedSchemas,
@@ -20,4 +21,5 @@ module.exports = {
   ...dashboardSchemas,
   ...manajemenLayananSchemas,
   ...pemindaiSchemas,
+  ...editProfileSchemas,
 };
