@@ -55,6 +55,18 @@ const openapi = {
       name: "Admin Profile",
       description: "Admin profile management and password change",
     },
+    {
+      name: "Customer - Riwayat",
+      description: "Riwayat pesanan customer",
+    },
+    {
+      name: "Customer - Detail Order",
+      description: "Detail pesanan customer",
+    },
+    {
+      name: "Customer - Payment",
+      description: "Pembayaran pesanan customer",
+    },
   ],
   components,
   paths,

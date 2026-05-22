@@ -9,6 +9,9 @@ const dashboardSchemas = require("./dashboard");
 const manajemenLayananSchemas = require("./manajemen_layanan");
 const pemindaiSchemas = require("./pemindai");
 const editProfileSchemas = require("./edit_profile");
+const customerOrderSchemas = require("./customer_order");
+const customerPaymentSchemas = require("./customer_payment");
+const customerBankSchemas = require("./customer_bank");
 
 module.exports = {
   ...sharedSchemas,
@@ -16,10 +19,13 @@ module.exports = {
   ...trackingSchemas,
   ...tokoSchemas,
   ...inventarisSchemas,
-  ...antreanSchemas,        
-  ...manajemenStaffSchemas, 
+  ...antreanSchemas,
+  ...manajemenStaffSchemas,
   ...dashboardSchemas,
   ...manajemenLayananSchemas,
   ...pemindaiSchemas,
   ...editProfileSchemas,
+  ...customerOrderSchemas,
+  ...customerPaymentSchemas,
+  ...customerBankSchemas,
 };
