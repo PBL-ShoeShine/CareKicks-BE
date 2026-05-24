@@ -1,4 +1,4 @@
-const supabase = require("../../../core/supabase");
+const supabase = require("../../../core/config/supabase");
 
 // ambil daftar rekening bank aktif
 const getBankAccounts = async () => {

@@ -11,4 +11,7 @@ router.use("/admin", require("../features/admin"));
 // Mengarah ke file auth.routes.js yang memproses token email 1 jam kamu
 router.use("/auth", require("../features/auth/auth.routes"));
 
+// 4. Customer routes 
+router.use("/customer", require("../features/customer"));
+
 module.exports = router;

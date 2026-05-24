@@ -1,5 +1,4 @@
-const supabase = require("../../../core/supabase"); // sesuaikan path supabase client kamu
-
+const supabase = require("../../../core/config/supabase");
 const getRiwayat = async (customerId, { status, search }) => {
   let query = supabase
     .from("orders")

@@ -1,4 +1,4 @@
-const supabase = require("../../../core/supabase");
+const supabase = require("../../../core/config/supabase");
 
 const getDetailOrder = async (orderId, customerId) => {
   // ambil data order
