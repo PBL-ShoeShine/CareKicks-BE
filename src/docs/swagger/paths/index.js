@@ -9,6 +9,7 @@ const adminDashboardPaths = require("./admin/dashboard");
 const adminManajemenLayananPaths = require("./admin/manajemen_layanan");
 const adminPemindaiPaths = require("./admin/pemindai");
 const adminProfilePaths = require("./admin/profile");
+const adminUbahPasswordPaths = require("./admin/ubah_password");
 
 module.exports = {
   ...userAuthPaths,
@@ -21,4 +22,5 @@ module.exports = {
   ...adminManajemenLayananPaths,
   ...adminPemindaiPaths,
   ...adminProfilePaths,
+  ...adminUbahPasswordPaths,
 };

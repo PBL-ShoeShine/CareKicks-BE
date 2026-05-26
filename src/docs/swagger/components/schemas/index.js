@@ -9,6 +9,7 @@ const dashboardSchemas = require("./dashboard");
 const manajemenLayananSchemas = require("./manajemen_layanan");
 const pemindaiSchemas = require("./pemindai");
 const editProfileSchemas = require("./edit_profile");
+const ubahPasswordSchemas = require("./ubah_password");
 
 module.exports = {
   ...sharedSchemas,
@@ -22,4 +23,5 @@ module.exports = {
   ...manajemenLayananSchemas,
   ...pemindaiSchemas,
   ...editProfileSchemas,
+  ...ubahPasswordSchemas,
 };

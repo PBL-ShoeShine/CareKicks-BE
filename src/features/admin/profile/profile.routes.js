@@ -1,32 +1,49 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 
-// 1. PATH MIDDLEWARE YANG BENAR (Dari file aslimu)
 const authMiddleware = require("../../../core/services/auth.middleware");
-
-// 2. PATH CONTROLLER YANG BENAR (Dari file aslimu)
 const editProfileController = require("../edit_profile/edit_profile.controller");
 const profileController = require("./profile.controller");
+
+// ✅ Memory storage — file tidak disimpan ke disk, langsung pakai buffer
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // Maks 5MB
+});
 
 // =====================================================================
 // RUTE: /api/v1/admin/profile
 // =====================================================================
 
-// 1. Ambil Data Profil (Mencegah profil kosong)
-// Kita utamakan fungsi getProfile dari kode baru, kalau tidak ada fallback ke kode lama
-router.get("/", authMiddleware, editProfileController.getProfile || profileController.getProfileAdmin);
+// 1. Ambil Data Profil
+router.get(
+  "/",
+  authMiddleware,
+  editProfileController.getProfile || profileController.getProfileAdmin
+);
 
-// 2. Simpan Perubahan Profil (Nama, No HP) & Request Ganti Email
+// 2. Simpan Perubahan Profil (Nama, No HP, Email)
 router.put("/", authMiddleware, editProfileController.updateProfil);
 
-// 3. Ganti Foto Profil (Tetap menggunakan controller lamamu agar aman)
-if (profileController && profileController.updateProfilePicture) {
-    router.put("/picture", authMiddleware, profileController.updateProfilePicture);
-}
+// 3. ✅ FIX: POST, pakai multer, arahkan ke editProfileController
+router.post(
+  "/picture",
+  authMiddleware,
+  upload.single("image"),
+  editProfileController.updateProfilePicture
+);
 
-// 4. Ganti Password
+// 4. Verifikasi Email dari link
+router.get("/verify-email", editProfileController.verifyEmail);
+
+// 5. Ganti Password
 if (editProfileController.changePassword) {
-    router.put("/change-password", authMiddleware, editProfileController.changePassword);
+  router.put(
+    "/change-password",
+    authMiddleware,
+    editProfileController.changePassword
+  );
 }
 
 module.exports = router;

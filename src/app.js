@@ -28,7 +28,6 @@ const routes = require("./routes");
 app.use("/api/v1", routes); // Jalur utama API (Semua rute diawali dengan /api/v1)
 
 // ====== 3. DOCUMENTATION SYSTEM ======
-// Halaman Swagger UI interaktif diakses via http://10.85.113.20:3000/api-docs
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
 // ====== 4. ERROR & 404 HANDLER ======
@@ -62,7 +61,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${PORT}`);
-  console.log(`📖 Dokumentasi Swagger aktif di: http://10.85.113.20:${PORT}/api-docs`);
+  console.log(`📖 Dokumentasi Swagger aktif di: http://10.254.102.20:${PORT}/api-docs`);
   console.log("\n===== DAFTAR RUTE AKTIF =====");
   console.table(listEndpoints(app).map(r => ({ METHODS: r.methods.join(", "), PATH: r.path })));
 });
