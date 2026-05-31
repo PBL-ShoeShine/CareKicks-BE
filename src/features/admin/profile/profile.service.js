@@ -3,20 +3,15 @@ const shopAccess = require("../../../core/services/shop-access.service");
 
 exports.getProfileData = async (authUser) => {
   const idUser = shopAccess.getUserId(authUser);
-  // Get user data
+
   const { data: userData, error: userError } = await supabase
     .from("users")
     .select("*")
     .eq("id_user", idUser)
     .single();
 
-  if (userError) {
-    throw userError;
-  }
-
-  if (!userData) {
-    throw new Error("User tidak ditemukan");
-  }
+  if (userError) throw userError;
+  if (!userData) throw new Error("User tidak ditemukan");
 
   let shop = null;
   try {
@@ -25,10 +20,7 @@ exports.getProfileData = async (authUser) => {
     shop = null;
   }
 
-  return {
-    user: userData,
-    shop: shop,
-  };
+  return { user: userData, shop };
 };
 
 exports.updateProfileData = async (idUser, { nama, no_hp, email }) => {
@@ -49,24 +41,21 @@ exports.updateProfileData = async (idUser, { nama, no_hp, email }) => {
     .select()
     .single();
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   return data;
 };
 
+// ✅ FIX: Ganti foto_profil → path_gambar (sesuai kolom di tabel users)
 exports.updateProfilePicture = async (idUser, imageUrl) => {
   const { data, error } = await supabase
     .from("users")
-    .update({ foto_profil: imageUrl })
+    .update({ path_gambar: imageUrl })
     .eq("id_user", idUser)
     .select()
     .single();
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   return data;
 };
