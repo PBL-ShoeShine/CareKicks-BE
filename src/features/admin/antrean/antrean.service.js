@@ -6,6 +6,8 @@ const ANTREAN_SELECT = `
   kode_order,
   status_order,
   tgl_order,
+  qr_image,
+  link_qr,
   detail_orders (
     id_detail_orders,
     merk,
@@ -17,6 +19,45 @@ const ANTREAN_SELECT = `
     total_harga
   )
 `;
+
+const QR_BUCKET = process.env.SUPABASE_QR_BUCKET || "services";
+
+const isUrl = (value) => /^https?:\/\//i.test(value);
+
+const getQrPublicUrl = (qrImage, linkQr) => {
+  if (!qrImage || typeof qrImage !== "string") return qrImage;
+  if (isUrl(qrImage)) return qrImage;
+  if (!qrImage.includes("/") && linkQr && isUrl(linkQr)) return linkQr;
+
+  const publicMarker = "/storage/v1/object/public/";
+  const publicIndex = qrImage.indexOf(publicMarker);
+  if (publicIndex !== -1) {
+    const publicPath = qrImage.slice(publicIndex + publicMarker.length);
+    const [, ...pathParts] = publicPath.split("/");
+    const storagePath = pathParts.join("/");
+    if (!storagePath) return qrImage;
+
+    const bucket = publicPath.split("/")[0] || QR_BUCKET;
+    const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+    return data.publicUrl;
+  }
+
+  const normalizedPath = qrImage.replace(/^\/+/, "");
+  const pathParts = normalizedPath.split("/");
+  const bucket = pathParts.length > 1 ? pathParts[0] : QR_BUCKET;
+  const storagePath = pathParts.length > 1 ? pathParts.slice(1).join("/") : normalizedPath;
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+  return data.publicUrl;
+};
+
+const normalizeQrOrder = (order) => {
+  if (!order) return order;
+  return {
+    ...order,
+    qr_image: getQrPublicUrl(order.qr_image, order.link_qr),
+  };
+};
 
 // Ambil semua antrean, filter by status (opsional)
 exports.getAllAntrean = async (authUser, status) => {
@@ -32,7 +73,7 @@ exports.getAllAntrean = async (authUser, status) => {
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return data;
+  return (data || []).map(normalizeQrOrder);
 };
 
 // Ambil total antrean aktif + selisih kemarin
@@ -80,7 +121,7 @@ exports.getAntreanById = async (authUser, idOrder) => {
     .eq("id_shops", idShops)
     .single();
   if (error) throw new Error(error.message);
-  return data;
+  return normalizeQrOrder(data);
 };
 
 // Update status order: pending -> diproses -> selesai
@@ -99,5 +140,5 @@ exports.updateStatus = async (authUser, idOrder, status) => {
     .select(ANTREAN_SELECT)
     .single();
   if (error) throw new Error(error.message);
-  return data;
+  return normalizeQrOrder(data);
 };
