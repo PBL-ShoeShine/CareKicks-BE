@@ -2,51 +2,59 @@ const { getBankAccounts, confirmPayment } = require("./payment.service");
 const supabase = require("../../../core/config/supabase");
 
 const getBankAccountsHandler = async (req, res) => {
-  // ... (kode ini tetap sama persis seperti sebelumnya)
+  try {
+    const data = await getBankAccounts();
+
+    return res.status(200).json({
+      status: "success",
+      message: "Berhasil mengambil data rekening bank",
+      data,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
 };
 
 const confirmPaymentHandler = async (req, res) => {
   try {
-    const { order_id } = req.body; // Mengambil teks order_id
-    const file = req.file; // Mengambil file gambar dari multer
+    const { order_id } = req.body;
+    const file = req.file;
 
-    // 1. Cek apakah user mengirimkan ID dan gambar
     if (!order_id || !file) {
       return res.status(400).json({
         status: "error",
-        message:
-          "order_id dan file bukti pembayaran (payment_proof) wajib dikirim",
+        message: "order_id dan file bukti pembayaran wajib dikirim",
       });
     }
 
-    // 2. Upload gambar ke Supabase Storage
-    // Pastikan kamu sudah membuat bucket bernama 'payment_proofs' di Supabase
-    const fileName = `payment_${Date.now()}_${file.originalname}`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("payment_proofs") // ← Ganti dengan nama bucket di Supabasemu
+    const safeFileName = file.originalname.replace(/\s+/g, "_");
+    const fileName = `payment_${Date.now()}_${safeFileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("payment_proofs")
       .upload(fileName, file.buffer, {
         contentType: file.mimetype,
+        upsert: false,
       });
 
     if (uploadError) {
-      throw new Error(
-        "Gagal mengunggah gambar ke penyimpanan: " + uploadError.message,
-      );
+      throw new Error(`Gagal mengunggah gambar: ${uploadError.message}`);
     }
 
-    // 3. Dapatkan URL Publik dari gambar yang baru diupload
     const { data: publicUrlData } = supabase.storage
-      .from("payment_proofs")
+      .from("services")
       .getPublicUrl(fileName);
 
     const payment_proof_url = publicUrlData.publicUrl;
 
-    // 4. Simpan order_id dan URL gambar ke Database (pakai service lamamu)
     const data = await confirmPayment(order_id, payment_proof_url);
 
     return res.status(200).json({
       status: "success",
-      message: "Pesanan Berhasil, pesananmu telah diterima dan sedang diproses",
+      message: "Pesanan berhasil, pesananmu telah diterima dan sedang diproses",
       data,
     });
   } catch (error) {
@@ -56,6 +64,7 @@ const confirmPaymentHandler = async (req, res) => {
         message: error.message,
       });
     }
+
     return res.status(500).json({
       status: "error",
       message: error.message,
@@ -63,4 +72,7 @@ const confirmPaymentHandler = async (req, res) => {
   }
 };
 
-module.exports = { getBankAccountsHandler, confirmPaymentHandler };
+module.exports = {
+  getBankAccountsHandler,
+  confirmPaymentHandler,
+};
