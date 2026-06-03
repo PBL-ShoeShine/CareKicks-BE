@@ -1,5 +1,5 @@
 const { getBankAccounts, confirmPayment } = require("./payment.service");
-const supabase = require("../../../config/supabase"); // ← Pastikan path import supabase.js ini sudah benar sesuai foldermu
+const supabase = require("../../../core/config/supabase");
 
 const getBankAccountsHandler = async (req, res) => {
   // ... (kode ini tetap sama persis seperti sebelumnya)
