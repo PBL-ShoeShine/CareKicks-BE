@@ -10,4 +10,7 @@ router.use("/orders", require("./detail_order/detail_order.routes"));
 // 3. Customer Payment routes
 router.use("/payments", require("./payment/payment.routes"));
 
+// 4. Customer store registration routes
+router.use("/stores", require("./stores/stores.routes"));
+
 module.exports = router;
