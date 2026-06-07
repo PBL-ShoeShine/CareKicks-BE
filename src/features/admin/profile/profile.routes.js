@@ -20,11 +20,11 @@ const upload = multer({
 router.get(
   "/",
   authMiddleware,
-  editProfileController.getProfile || profileController.getProfileAdmin
+  profileController.getProfileAdmin
 );
 
 // 2. Simpan Perubahan Profil (Nama, No HP, Email)
-router.put("/", authMiddleware, editProfileController.updateProfil);
+router.put("/", authMiddleware, profileController.updateProfileAdmin);
 
 // 3. ✅ FIX: POST, pakai multer, arahkan ke editProfileController
 router.post(

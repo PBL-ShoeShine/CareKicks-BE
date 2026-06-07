@@ -16,16 +16,30 @@ const customerOnly = (req, res, next) => {
   return next();
 };
 
-router.use(authMiddleware, customerOnly);
+const registrationStatusAccess = (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
 
+  if (!["customer", "shops_admin"].includes(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Hanya customer atau admin toko yang dapat melihat status pendaftaran toko",
+    });
+  }
+
+  return next();
+};
+
+router.use(authMiddleware);
+
+router.get("/my-registration", registrationStatusAccess, storesController.getMyRegistration);
 router.post(
   "/register",
+  customerOnly,
   upload.fields([
     { name: "foto_ktp", maxCount: 1 },
     { name: "foto_toko", maxCount: 1 },
   ]),
   storesController.registerStore,
 );
-router.get("/my-registration", storesController.getMyRegistration);
 
 module.exports = router;

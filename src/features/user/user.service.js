@@ -175,20 +175,6 @@ const buildLoginUserPayload = async (userData) => {
         ? shopAdmin.shops[0]
         : shopAdmin.shops;
 
-      if (String(shop?.status_verifikasi || "").toLowerCase() === "suspended") {
-        const suspendedError = new Error("Toko Anda ditangguhkan");
-        suspendedError.status = 403;
-        suspendedError.code = "SHOP_SUSPENDED";
-        suspendedError.data = {
-          status_verifikasi: shop.status_verifikasi,
-          alasan_penangguhan: shop.alasan_penangguhan,
-          suspended_at: shop.suspended_at,
-          nm_toko: shop.nm_toko,
-          id_shops: shop.id_shops,
-        };
-        throw suspendedError;
-      }
-
       return {
         ...safeUser,
         id_shops_admin: shopAdmin.id_shops_admin,

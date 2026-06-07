@@ -10,6 +10,9 @@ router.use("/admin", require("../features/admin"));
 // 2a. SuperAdmin routes
 router.use("/superadmin", require("../features/superadmin"));
 
+// 2b. Shop admin appeal routes
+router.use("/shop/appeals", require("../features/admin/shop-appeals/shop-appeals.routes"));
+
 // --- TAMBAHAN RUTE UBAH PASSWORD ---
 // Mengarahkan ke file ubah_password.routes.js yang ada di folder password
 router.use("/admin", require("../features/admin/ubah_password/ubah_password.routes"));

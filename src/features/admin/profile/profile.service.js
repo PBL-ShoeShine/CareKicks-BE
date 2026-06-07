@@ -1,12 +1,14 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 
+const USER_PROFILE_COLUMNS = "id_user, username, nama, email, no_hp, jenis_role, path_gambar";
+
 exports.getProfileData = async (authUser) => {
   const idUser = shopAccess.getUserId(authUser);
 
   const { data: userData, error: userError } = await supabase
     .from("users")
-    .select("*")
+    .select(USER_PROFILE_COLUMNS)
     .eq("id_user", idUser)
     .single();
 
@@ -38,7 +40,7 @@ exports.updateProfileData = async (idUser, { nama, no_hp, email }) => {
     .from("users")
     .update(updateData)
     .eq("id_user", idUser)
-    .select()
+    .select(USER_PROFILE_COLUMNS)
     .single();
 
   if (error) throw error;
