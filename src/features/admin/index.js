@@ -37,5 +37,11 @@ router.use("/manajemen_staff", require("./manajemen_staff/manajemen_staff.routes
 // 10. Admin Pemindai routes 
 router.use("/pemindai", require("./pemindai/pemindai.routes"));
 
+// 11. SuperAdmin user management routes
+router.use("/users", require("./users/user.routes"));
+
+// 12. SuperAdmin shop management routes
+router.use("/shops", require("./shops/shops.routes"));
+
 // Export router utama
 module.exports = router;
