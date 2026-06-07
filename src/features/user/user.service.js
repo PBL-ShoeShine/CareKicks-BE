@@ -151,7 +151,22 @@ const buildLoginUserPayload = async (userData) => {
   if (userData.jenis_role === "shops_admin") {
     const { data: shopAdmin, error: shopAdminError } = await supabase
       .from("shops_admin")
-      .select("id_shops_admin, shops(id_shops, nm_toko, desk_toko, alamat_toko, foto_toko, spesialisasi)")
+      .select(
+        `
+        id_shops_admin,
+        shops (
+          id_shops,
+          nm_toko,
+          desk_toko,
+          alamat_toko,
+          foto_toko,
+          spesialisasi,
+          status_verifikasi,
+          alasan_penangguhan,
+          suspended_at
+        )
+      `,
+      )
       .eq("id_user", userData.id_user)
       .maybeSingle();
 
@@ -159,6 +174,21 @@ const buildLoginUserPayload = async (userData) => {
       const shop = Array.isArray(shopAdmin.shops)
         ? shopAdmin.shops[0]
         : shopAdmin.shops;
+
+      if (String(shop?.status_verifikasi || "").toLowerCase() === "suspended") {
+        const suspendedError = new Error("Toko Anda ditangguhkan");
+        suspendedError.status = 403;
+        suspendedError.code = "SHOP_SUSPENDED";
+        suspendedError.data = {
+          status_verifikasi: shop.status_verifikasi,
+          alasan_penangguhan: shop.alasan_penangguhan,
+          suspended_at: shop.suspended_at,
+          nm_toko: shop.nm_toko,
+          id_shops: shop.id_shops,
+        };
+        throw suspendedError;
+      }
+
       return {
         ...safeUser,
         id_shops_admin: shopAdmin.id_shops_admin,

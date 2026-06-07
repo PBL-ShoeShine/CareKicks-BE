@@ -14,6 +14,15 @@ exports.login = async (req, res) => {
     const result = await service.login(req.body);
     res.json(result);
   } catch (err) {
+    if (err.code === "SHOP_SUSPENDED") {
+      return res.status(err.status || 403).json({
+        success: false,
+        code: "SHOP_SUSPENDED",
+        message: err.message,
+        data: err.data,
+      });
+    }
+
     res.status(400).json({ message: err.message });
   }
 };
