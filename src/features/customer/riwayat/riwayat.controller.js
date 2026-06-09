@@ -1,11 +1,26 @@
 const { getRiwayat } = require("./riwayat.service");
+const supabase = require("../../../core/config/supabase");
 
 const getRiwayatHandler = async (req, res) => {
   try {
-    const customerId = req.user.id; // dari middleware auth
+    const userId = req.user.id; // ini id_user
     const { status, search } = req.query;
 
-    const data = await getRiwayat(customerId, { status, search });
+    // lookup id_customers dari id_user
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .select("id_customers")
+      .eq("id_user", userId)
+      .single();
+
+    if (customerError || !customer) {
+      return res.status(404).json({
+        status: "error",
+        message: "Data customer tidak ditemukan",
+      });
+    }
+
+    const data = await getRiwayat(customer.id_customers, { status, search });
 
     return res.status(200).json({
       status: "success",

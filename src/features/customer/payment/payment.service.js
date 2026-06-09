@@ -1,51 +1,51 @@
 const supabase = require("../../../core/config/supabase");
 
-// ambil daftar rekening bank aktif
-const getBankAccounts = async () => {
-  const { data, error } = await supabase
-    .from("bank_accounts")
-    .select("*")
-    .eq("is_active", true);
-
-  if (error) throw new Error(error.message);
-  return data;
-};
-
-// konfirmasi pembayaran (upload bukti transfer)
-const confirmPayment = async (orderId, paymentProofUrl) => {
-  // cek apakah order ada
+const getBankAccounts = async (orderId) => {
+  // Ambil id_shops dari order dulu
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number")
-    .eq("id", orderId)
+    .select("id_shops")
+    .eq("id_orders", orderId)
     .single();
 
   if (orderError) throw new Error(orderError.message);
   if (!order) throw new Error("Pesanan tidak ditemukan");
 
-  // update payment dengan bukti transfer
-  const { data: payment, error: paymentError } = await supabase
-    .from("payments")
-    .update({
-      payment_proof_url: paymentProofUrl,
-      payment_status: "berhasil",
-      paid_at: new Date().toISOString(),
-    })
-    .eq("order_id", orderId)
-    .select()
+  // Ambil rekening sesuai toko
+  const { data, error } = await supabase
+    .from("account")
+    .select("*")
+    .eq("id_shops", order.id_shops);
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const confirmPayment = async (orderId, paymentProofUrl) => {
+  // Cek order ada
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select("id_orders, kode_order, total_ongkir")
+    .eq("id_orders", orderId)
     .single();
 
-  if (paymentError) throw new Error(paymentError.message);
+  if (orderError) throw new Error(orderError.message);
+  if (!order) throw new Error("Pesanan tidak ditemukan");
 
-  // update status order jadi di_proses
-  await supabase
+  // Simpan URL bukti bayar + update status pembayaran
+  const { error: updateError } = await supabase
     .from("orders")
-    .update({ status: "di_proses" })
-    .eq("id", orderId);
+    .update({
+      upload_bkt_byr: paymentProofUrl,
+      status_pembayaran: "menunggu_verifikasi",
+    })
+    .eq("id_orders", orderId);
+
+  if (updateError) throw new Error(updateError.message);
 
   return {
-    order_number: order.order_number,
-    total_amount: payment.total_amount,
+    kode_order: order.kode_order,
+    total_ongkir: order.total_ongkir,
   };
 };
 

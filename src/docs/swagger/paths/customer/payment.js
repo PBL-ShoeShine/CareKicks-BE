@@ -1,12 +1,22 @@
-const paymentPaths = {
-  "/customer/payments/bank-accounts": {
+// docs/swagger/paths/customer/payment.js
+module.exports = {
+  "/customer/payment/bank-accounts": {
     get: {
       tags: ["Customer - Payment"],
-      summary: "Ambil daftar rekening bank tujuan transfer",
+      summary: "Customer: Ambil daftar rekening bank toko",
       security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "order_id",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+          description: "ID order untuk mencari bank milik toko tersebut",
+        },
+      ],
       responses: {
         200: {
-          description: "Berhasil mengambil daftar rekening",
+          description: "Berhasil mengambil data rekening",
           content: {
             "application/json": {
               schema: {
@@ -22,53 +32,7 @@ const paymentPaths = {
             },
           },
         },
-        401: { description: "Unauthorized" },
-        500: { description: "Internal Server Error" },
-      },
-    },
-  },
-
-  "/customer/payments/confirm": {
-    post: {
-      tags: ["Customer - Payment"],
-      summary: "Upload bukti transfer dan konfirmasi pembayaran",
-      security: [{ bearerAuth: [] }],
-      requestBody: {
-        required: true,
-        content: {
-          "application/json": {
-            schema: { $ref: "#/components/schemas/PaymentConfirmRequest" },
-          },
-        },
-      },
-      responses: {
-        200: {
-          description: "Pembayaran berhasil dikonfirmasi",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: { type: "string", example: "success" },
-                  message: { type: "string", example: "Pesanan Berhasil" },
-                  data: {
-                    type: "object",
-                    properties: {
-                      order_number: { type: "string", example: "SS-2024-0891" },
-                      total_amount: { type: "integer", example: 75000 },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        400: { description: "Data tidak lengkap" },
-        404: { description: "Pesanan tidak ditemukan" },
-        500: { description: "Internal Server Error" },
       },
     },
   },
 };
-
-module.exports = paymentPaths;

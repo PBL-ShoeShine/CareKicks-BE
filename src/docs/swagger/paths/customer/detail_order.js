@@ -1,17 +1,17 @@
-const detailOrderPaths = {
-  "/customer/orders/{orderId}": {
+module.exports = {
+  "/customer/detail-order/{orderId}": {
     get: {
       tags: ["Customer - Detail Order"],
-      summary: "Ambil detail pesanan berdasarkan ID",
+      summary: "Mendapatkan detail pesanan berdasarkan ID Order",
       security: [{ bearerAuth: [] }],
       parameters: [
         {
           name: "orderId",
           in: "path",
           required: true,
-          schema: { type: "string", format: "uuid" },
-          description: "UUID dari pesanan",
-        },
+          schema: { type: "string" },
+          description: "ID dari pesanan yang ingin dilihat detailnya"
+        }
       ],
       responses: {
         200: {
@@ -25,25 +25,24 @@ const detailOrderPaths = {
                   data: {
                     type: "object",
                     properties: {
-                      order: { $ref: "#/components/schemas/Order" },
+                      order: { $ref: "#/components/schemas/CustomerOrder" },
                       items: {
                         type: "array",
-                        items: { $ref: "#/components/schemas/OrderItem" },
+                        description: "Daftar sepatu yang dicuci",
+                        items: { type: "object" } 
                       },
-                      payment: { $ref: "#/components/schemas/Payment" },
-                    },
-                  },
-                },
-              },
-            },
-          },
+                      payment: { type: "object", nullable: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
-        401: { description: "Unauthorized" },
-        404: { description: "Pesanan tidak ditemukan" },
-        500: { description: "Internal Server Error" },
-      },
-    },
-  },
+        404: {
+          description: "Pesanan tidak ditemukan"
+        }
+      }
+    }
+  }
 };
-
-module.exports = detailOrderPaths;

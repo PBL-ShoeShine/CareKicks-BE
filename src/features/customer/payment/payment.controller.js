@@ -3,11 +3,20 @@ const supabase = require("../../../core/config/supabase");
 
 const getBankAccountsHandler = async (req, res) => {
   try {
-    const data = await getBankAccounts();
+    const { order_id } = req.query;
+
+    if (!order_id) {
+      return res.status(400).json({
+        status: "error",
+        message: "order_id wajib dikirim",
+      });
+    }
+
+    const data = await getBankAccounts(order_id);
 
     return res.status(200).json({
       status: "success",
-      message: "Berhasil mengambil data rekening bank",
+      message: "Berhasil mengambil data rekening",
       data,
     });
   } catch (error) {
@@ -31,10 +40,11 @@ const confirmPaymentHandler = async (req, res) => {
     }
 
     const safeFileName = file.originalname.replace(/\s+/g, "_");
-    const fileName = `payment_${Date.now()}_${safeFileName}`;
+    const fileName = `payment/${Date.now()}_${safeFileName}`;
 
+    // Upload ke bucket services folder payment
     const { error: uploadError } = await supabase.storage
-      .from("payment_proofs")
+      .from("services")
       .upload(fileName, file.buffer, {
         contentType: file.mimetype,
         upsert: false,
@@ -44,27 +54,21 @@ const confirmPaymentHandler = async (req, res) => {
       throw new Error(`Gagal mengunggah gambar: ${uploadError.message}`);
     }
 
+    // Get public URL dari bucket services
     const { data: publicUrlData } = supabase.storage
       .from("services")
       .getPublicUrl(fileName);
 
-    const payment_proof_url = publicUrlData.publicUrl;
+    const paymentProofUrl = publicUrlData.publicUrl;
 
-    const data = await confirmPayment(order_id, payment_proof_url);
+    const data = await confirmPayment(order_id, paymentProofUrl);
 
     return res.status(200).json({
       status: "success",
-      message: "Pesanan berhasil, pesananmu telah diterima dan sedang diproses",
+      message: "Bukti pembayaran berhasil dikirim, menunggu verifikasi admin",
       data,
     });
   } catch (error) {
-    if (error.message === "Pesanan tidak ditemukan") {
-      return res.status(404).json({
-        status: "error",
-        message: error.message,
-      });
-    }
-
     return res.status(500).json({
       status: "error",
       message: error.message,
@@ -72,7 +76,4 @@ const confirmPaymentHandler = async (req, res) => {
   }
 };
 
-module.exports = {
-  getBankAccountsHandler,
-  confirmPaymentHandler,
-};
+module.exports = { getBankAccountsHandler, confirmPaymentHandler };

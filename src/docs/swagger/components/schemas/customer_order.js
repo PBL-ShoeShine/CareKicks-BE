@@ -1,44 +1,67 @@
-const customerOrderSchemas = {
-  Order: {
+module.exports = {
+  CustomerOrder: {
     type: "object",
     properties: {
-      id: {
+      id_orders: { type: "integer", example: 1 },
+      kode_order: { type: "string", example: "ORD-BUDI-001" },
+      metode_order: { type: "string", example: "online" },
+      status_order: { type: "string", example: "menunggu_konfirmasi" },
+      tgl_order: {
         type: "string",
-        format: "uuid",
-        example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        format: "date-time",
+        example: "2026-06-07T10:00:00Z",
       },
-      order_number: { type: "string", example: "SS-2024-0891" },
-      customer_id: { type: "string", format: "uuid" },
-      service_type: { type: "string", example: "Deep Clean" },
-      status: {
+      total_ongkir: { type: "number", example: 10000 },
+      metode_bayar: { type: "string", example: "transfer" },
+      status_pembayaran: { type: "string", example: "unpaid" },
+      upload_bkt_byr: {
         type: "string",
-        enum: ["menunggu", "di_proses", "selesai"],
-        example: "selesai",
+        nullable: true,
+        example: "https://.../payment/123_bukti.jpg",
       },
-      date: { type: "string", format: "date", example: "2015-01-16" },
-      address: { type: "string", example: "Jalan Tembalang, Mulawarman 5" },
-      total_price: { type: "integer", example: 12000 },
-      created_at: { type: "string", format: "date-time" },
-    },
-  },
-
-  OrderItem: {
-    type: "object",
-    properties: {
-      id: { type: "string", format: "uuid" },
-      order_id: { type: "string", format: "uuid" },
-      product_name: {
+      alamat_pengantaran: { type: "string", example: "Jl. Merdeka No.10" },
+      catatan_pengiriman: {
         type: "string",
-        example: "Nike Air Zoom Pegasus 36 Miami",
+        nullable: true,
+        example: "Tolong hati-hati",
       },
-      product_image_url: {
-        type: "string",
-        example: "https://example.com/image.jpg",
+      shops: {
+        type: "object",
+        properties: {
+          id_shops: { type: "integer", example: 1 },
+          nm_toko: { type: "string", example: "Shoes Cleaner Semarang" },
+          alamat_toko: { type: "string", example: "Jl. Pemuda No. 12" },
+          lat_toko: { type: "number", format: "float", example: -6.9824 },
+          long_toko: { type: "number", format: "float", example: 110.4323 },
+        },
       },
-      quantity: { type: "integer", example: 3 },
-      price: { type: "integer", example: 10000 },
+      detail_orders: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id_detail_orders: { type: "integer", example: 1 },
+            total_harga: { type: "number", example: 30000 },
+            merk: { type: "string", example: "Adidas" },
+            jenis_sepatu: { type: "string", example: "Sneakers" },
+            warna: { type: "string", example: "Putih" },
+            catatan: {
+              type: "string",
+              nullable: true,
+              example: "Sol agak terkelupas",
+            },
+            foto_sebelum: { type: "string", nullable: true },
+            services: {
+              type: "object",
+              properties: {
+                id_services: { type: "integer", example: 1 },
+                nama_layanan: { type: "string", example: "Deep Clean" },
+                harga: { type: "number", example: 30000 },
+              },
+            },
+          },
+        },
+      },
     },
   },
 };
-
-module.exports = customerOrderSchemas;
