@@ -9,10 +9,10 @@ const dashboardSchemas = require("./dashboard");
 const manajemenLayananSchemas = require("./manajemen_layanan");
 const pemindaiSchemas = require("./pemindai");
 const editProfileSchemas = require("./edit_profile");
-const ubahPasswordSchemas = require("./ubah_password");     // ← punya teman
-const customerOrderSchemas = require("./customer_order");   // ← punya kamu
-const customerPaymentSchemas = require("./customer_payment"); // ← punya kamu
-const customerBankSchemas = require("./customer_bank");     // ← punya kamu
+const ubahPasswordSchemas = require("./ubah_password");
+const customerOrderSchemas = require("./customer_order");
+const customerPaymentSchemas = require("./customer_payment");
+const bankSchemas = require("./bank");
 
 module.exports = {
   ...sharedSchemas,
@@ -26,8 +26,8 @@ module.exports = {
   ...manajemenLayananSchemas,
   ...pemindaiSchemas,
   ...editProfileSchemas,
-  ...ubahPasswordSchemas,     // ← punya teman
-  ...customerOrderSchemas,    // ← punya kamu
-  ...customerPaymentSchemas,  // ← punya kamu
-  ...customerBankSchemas,     // ← punya kamu
+  ...ubahPasswordSchemas,
+  ...customerOrderSchemas,
+  ...customerPaymentSchemas,
+  ...bankSchemas,
 };
