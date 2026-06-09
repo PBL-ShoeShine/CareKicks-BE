@@ -67,6 +67,14 @@ const openapi = {
       name: "Customer - Payment",
       description: "Pembayaran pesanan customer",
     },
+    {
+      name: "Customer - Profile",
+      description: "Manajemen profil dan password customer",
+    },
+    {
+      name: "Customer - Address",
+      description: "Manajemen alamat pengiriman customer",
+    },
   ],
   components,
   paths,

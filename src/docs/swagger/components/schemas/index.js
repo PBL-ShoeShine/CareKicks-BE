@@ -13,6 +13,7 @@ const ubahPasswordSchemas = require("./ubah_password");     // ← punya teman
 const customerOrderSchemas = require("./customer_order");   // ← punya kamu
 const customerPaymentSchemas = require("./customer_payment"); // ← punya kamu
 const customerBankSchemas = require("./customer_bank");     // ← punya kamu
+const customerProfileSchemas = require("./customer_profile");
 
 module.exports = {
   ...sharedSchemas,
@@ -30,4 +31,5 @@ module.exports = {
   ...customerOrderSchemas,    // ← punya kamu
   ...customerPaymentSchemas,  // ← punya kamu
   ...customerBankSchemas,     // ← punya kamu
+  ...customerProfileSchemas,
 };

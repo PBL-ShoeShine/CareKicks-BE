@@ -12,6 +12,8 @@ const adminUbahPasswordPaths = require("./admin/ubah_password"); // ← punya te
 const customerRiwayatPaths = require("./customer/riwayat");      // ← punya kamu
 const customerDetailOrderPaths = require("./customer/detail_order"); // ← punya kamu
 const customerPaymentPaths = require("./customer/payment");      // ← punya kamu
+const customerProfilePaths = require("./customer/profile");
+const customerAddressPaths = require("./customer/address");
 
 module.exports = {
   ...userAuthPaths,
@@ -28,4 +30,6 @@ module.exports = {
   ...customerRiwayatPaths,    // ← punya kamu
   ...customerDetailOrderPaths, // ← punya kamu
   ...customerPaymentPaths,    // ← punya kamu
+  ...customerProfilePaths,
+  ...customerAddressPaths,
 };
