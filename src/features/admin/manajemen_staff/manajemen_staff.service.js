@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 
+// REVISI: Hapus "role" dari STAFF_SELECT
 const STAFF_SELECT = `
   id_staff,
   id_user,
@@ -12,7 +13,6 @@ const STAFF_SELECT = `
     email,
     no_hp,
     id_shops,
-    role,
     status
   )
 `;
@@ -21,7 +21,7 @@ const normalizeEmail = (email) => email?.trim().toLowerCase();
 
 class StaffService {
   async registerStaff(authUser, payload) {
-    const { nama, no_hp, role, password } = payload;
+    const { nama, no_hp, password } = payload; // Role sudah tidak diterima
     const email = normalizeEmail(payload.email);
 
     if (!nama?.trim() || !email || !no_hp?.trim() || !password) {
@@ -50,7 +50,6 @@ class StaffService {
     if (existingError) throw new Error(existingError.message);
     if (existingUser) throw new Error("Email sudah terdaftar");
 
-    // Users adalah sumber akun login. id_user dari insert ini dipakai oleh tabel staff.
     const { data: userData, error: userError } = await supabase
       .from("users")
       .insert({
@@ -69,6 +68,7 @@ class StaffService {
     let profileData;
 
     try {
+      // REVISI: Hapus "role" dari insert query
       const { data: insertedProfile, error: profileError } = await supabase
         .from("staff_profile")
         .insert({
@@ -76,10 +76,9 @@ class StaffService {
           email,
           no_hp: no_hp.trim(),
           id_shops: idShops,
-          role,
           status: payload.status || "AKTIF",
         })
-        .select("id_staff_profile, nama, email, no_hp, id_shops, role, status")
+        .select("id_staff_profile, nama, email, no_hp, id_shops, status")
         .single();
 
       if (profileError) throw new Error(profileError.message);
@@ -98,7 +97,6 @@ class StaffService {
 
       return staffData;
     } catch (error) {
-      // Supabase client tidak memakai transaction di sini, jadi rollback manual untuk menghindari akun yatim.
       if (profileData?.id_staff_profile) {
         await supabase
           .from("staff_profile")
@@ -149,22 +147,28 @@ class StaffService {
     const profileUpdate = {};
     const userUpdate = {};
 
-    ["nama", "email", "no_hp", "role", "status"].forEach((field) => {
-      if (updateData[field] !== undefined) profileUpdate[field] = updateData[field];
+    // REVISI: Hapus "role" dari array field update
+    ["nama", "email", "no_hp", "status"].forEach((field) => {
+      if (updateData[field] !== undefined)
+        profileUpdate[field] = updateData[field];
     });
 
-    if (profileUpdate.email) profileUpdate.email = normalizeEmail(profileUpdate.email);
+    if (profileUpdate.email)
+      profileUpdate.email = normalizeEmail(profileUpdate.email);
 
     if (profileUpdate.nama !== undefined) userUpdate.nama = profileUpdate.nama;
-    if (profileUpdate.email !== undefined) userUpdate.email = profileUpdate.email;
-    if (profileUpdate.no_hp !== undefined) userUpdate.no_hp = profileUpdate.no_hp;
+    if (profileUpdate.email !== undefined)
+      userUpdate.email = profileUpdate.email;
+    if (profileUpdate.no_hp !== undefined)
+      userUpdate.no_hp = profileUpdate.no_hp;
 
+    // REVISI: Hapus "role" dari .select()
     const { data, error } = await supabase
       .from("staff_profile")
       .update(profileUpdate)
       .eq("id_staff_profile", idProfile)
       .eq("id_shops", existing.staff_profile.id_shops)
-      .select("id_staff_profile, nama, email, no_hp, id_shops, role, status")
+      .select("id_staff_profile, nama, email, no_hp, id_shops, status")
       .single();
 
     if (error) throw new Error(error.message);
