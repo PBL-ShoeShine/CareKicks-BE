@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors"); 
+const cors = require("cors");
 const multer = require("multer");
 const listEndpoints = require("express-list-endpoints");
 const swaggerUi = require("swagger-ui-express");
@@ -44,7 +44,8 @@ app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err);
 
   if (err instanceof multer.MulterError) {
-    const message = err.code === "LIMIT_FILE_SIZE" ? "Ukuran foto maksimal 5MB" : err.message;
+    const message =
+      err.code === "LIMIT_FILE_SIZE" ? "Ukuran foto maksimal 5MB" : err.message;
     return res.status(400).json({
       success: false,
       message,
@@ -59,9 +60,16 @@ app.use((err, req, res, next) => {
 
 // ====== 5. MENYALAKAN SERVER ======
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${PORT}`);
-  console.log(`📖 Dokumentasi Swagger aktif di: http://10.254.102.20:${PORT}/api-docs`);
+  console.log(
+    `📖 Dokumentasi Swagger aktif di: http://172.16.161.95:${PORT}/api-docs`,
+  );
   console.log("\n===== DAFTAR RUTE AKTIF =====");
-  console.table(listEndpoints(app).map(r => ({ METHODS: r.methods.join(", "), PATH: r.path })));
+  console.table(
+    listEndpoints(app).map((r) => ({
+      METHODS: r.methods.join(", "),
+      PATH: r.path,
+    })),
+  );
 });

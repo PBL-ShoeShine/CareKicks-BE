@@ -1,31 +1,26 @@
-const riwayatPaths = {
-  "/customer/orders": {
+module.exports = {
+  "/customer/riwayat": {
     get: {
       tags: ["Customer - Riwayat"],
-      summary: "Ambil daftar riwayat pesanan customer",
+      summary: "Mendapatkan daftar riwayat pesanan customer",
       security: [{ bearerAuth: [] }],
       parameters: [
         {
           name: "status",
           in: "query",
-          required: false,
-          schema: {
-            type: "string",
-            enum: ["menunggu", "di_proses", "selesai"],
-          },
-          description: "Filter berdasarkan status pesanan",
+          schema: { type: "string" },
+          description: "Filter pesanan berdasarkan status_order (opsional)"
         },
         {
           name: "search",
           in: "query",
-          required: false,
           schema: { type: "string" },
-          description: "Cari berdasarkan nama layanan atau nomor pesanan",
-        },
+          description: "Pencarian berdasarkan kode_order atau nama toko (opsional)"
+        }
       ],
       responses: {
         200: {
-          description: "Berhasil mengambil daftar pesanan",
+          description: "Berhasil mengambil data riwayat",
           content: {
             "application/json": {
               schema: {
@@ -34,18 +29,17 @@ const riwayatPaths = {
                   status: { type: "string", example: "success" },
                   data: {
                     type: "array",
-                    items: { $ref: "#/components/schemas/Order" },
-                  },
-                },
-              },
-            },
-          },
+                    items: { $ref: "#/components/schemas/CustomerOrder" }
+                  }
+                }
+              }
+            }
+          }
         },
-        401: { description: "Unauthorized" },
-        500: { description: "Internal Server Error" },
-      },
-    },
-  },
+        500: {
+          description: "Terjadi kesalahan pada server"
+        }
+      }
+    }
+  }
 };
-
-module.exports = riwayatPaths;

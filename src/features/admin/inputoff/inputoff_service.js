@@ -95,7 +95,6 @@ exports.createOfflineOrder = async (inputData) => {
         kode_order,
         id_customer: customerId,
         id_shops,
-        id_staff: null,
         tgl_order: new Date(),
         status_order: "pending",
         metode_order: "offline",
@@ -166,15 +165,13 @@ exports.createOfflineOrder = async (inputData) => {
 
     // Step 7: Create initial tracking log
     const { error: trackingError } = await supabase
-      .from("tracking_logs")
+      .from("order_status_history")
       .insert({
-        status: "pending",
-        id_staff: null,
         id_orders,
-        waktu: new Date(),
+        id_staff: null,
+        status: "pending",
         keterangan: `Order offline dibuat - ${catatan || ""}`,
-        latitude: null,
-        longitude: null,
+        changed_by_role: "admin_toko",
       });
 
     if (trackingError) {

@@ -1,46 +1,89 @@
 const supabase = require("../../../core/config/supabase");
 
-const PICKUP_STATUSES = new Set([
-	"menunggu_jemput",
-	"sedang_dijemput",
-	"diterima_toko",
-]);
-const WASH_STATUSES = new Set(["pending", "diproses"]);
-const DELIVERY_STATUSES = new Set([
-	"siap_diantar",
-	"sedang_diantar",
-	"selesai",
+// Status yang boleh diupdate oleh staff via scan QR
+const STATUS_VALID_STAFF = new Set([
+  "sedang_dijemput",
+  "sudah_dijemput",
+  "washing",
+  "selesai_cuci",
+  "sedang_diantar",
+  "selesai",
 ]);
 
-const PICKUP_FLOW = ["menunggu_jemput", "sedang_dijemput", "diterima_toko"];
-const DELIVERY_FLOW = ["siap_diantar", "sedang_diantar", "selesai"];
+// Status yang butuh GPS tracking (insert ke tracking_logs)
+const STATUS_GPS = new Set(["sedang_dijemput", "sedang_diantar"]);
+
+// Flow pickup
+const PICKUP_FLOW = ["menunggu_dijemput", "sedang_dijemput", "sudah_dijemput"];
+
+// Flow delivery
+const DELIVERY_FLOW = ["selesai_cuci", "sedang_diantar", "selesai"];
+
+// Flow cuci (berlaku online & offline)
+const WASH_FLOW = [
+  "sudah_dijemput", // online: setelah dijemput
+  "dikonfirmasi", // offline: setelah dikonfirmasi
+  "washing",
+  "selesai_cuci",
+];
 
 const normalizeStatus = (value) =>
-	typeof value === "string" ? value.trim().toLowerCase() : value;
+  typeof value === "string" ? value.trim().toLowerCase() : value;
 
 const isValidFlowTransition = (currentStatus, nextStatus, flow) => {
-	const currentIndex = flow.indexOf(currentStatus);
-	const nextIndex = flow.indexOf(nextStatus);
-
-	if (nextIndex < 0) return false;
-	if (currentIndex < 0) return nextIndex === 0;
-
-	return nextIndex === currentIndex || nextIndex === currentIndex + 1;
+  const currentIndex = flow.indexOf(currentStatus);
+  const nextIndex = flow.indexOf(nextStatus);
+  if (nextIndex < 0) return false;
+  if (currentIndex < 0) return nextIndex === 0;
+  return nextIndex === currentIndex + 1;
 };
 
-exports.getAllTracking = async (shopId, search = "", _status = "") => {
-	let query = supabase
-		.from("orders")
-		.select(
-			`
+// Helper: insert ke order_status_history
+const insertStatusHistory = async (
+  idOrders,
+  status,
+  changedByRole,
+  idStaff = null,
+  keterangan = null,
+) => {
+  const { error } = await supabase.from("order_status_history").insert({
+    id_orders: idOrders,
+    id_staff: idStaff,
+    status,
+    keterangan,
+    changed_by_role: changedByRole,
+  });
+  if (error) throw new Error(`Gagal insert history: ${error.message}`);
+};
+
+// Helper: insert GPS ke tracking_logs
+const insertGpsLog = async (idOrders, idStaff, status, latitude, longitude) => {
+  const { error } = await supabase.from("tracking_logs").insert({
+    id_orders: idOrders,
+    id_staff: idStaff,
+    status,
+    keterangan: "Update lokasi kurir",
+    latitude,
+    longitude,
+    log_type: "gps_update",
+    waktu: new Date().toISOString(),
+  });
+  if (error) throw new Error(`Gagal insert GPS log: ${error.message}`);
+};
+
+exports.getAllTracking = async (shopId, search = "") => {
+  // Tracking hanya tampilkan order yang sedang dalam proses logistik
+  let query = supabase
+    .from("orders")
+    .select(
+      `
       id_orders,
       kode_order,
       status_order,
+      metode_order,
       metode_pengambilan,
       tgl_order,
-      customers (
-        nama
-      ),
+      customers (nama),
       detail_orders (
         id_detail_orders,
         merk,
@@ -48,285 +91,283 @@ exports.getAllTracking = async (shopId, search = "", _status = "") => {
         total_harga
       )
     `,
-		)
-		.eq("id_shops", shopId)
-		.in("status_order", [
-			"menunggu_jemput",
-			"sedang_dijemput",
-			"siap_diantar",
-			"sedang_diantar",
-		]);
+    )
+    .eq("id_shops", shopId)
+    .in("status_order", [
+      "menunggu_dijemput",
+      "sedang_dijemput",
+      "sudah_dijemput",
+      "sedang_diantar",
+    ]);
 
-	if (search) {
-		query = query.ilike("kode_order", `%${search}%`);
-	}
+  if (search) query = query.ilike("kode_order", `%${search}%`);
 
-	const { data, error } = await query.order("tgl_order", { ascending: false });
-
-	if (error) throw error;
-	return data;
+  const { data, error } = await query.order("tgl_order", { ascending: false });
+  if (error) throw error;
+  return data;
 };
 
 exports.getTrackingDetail = async (orderId, shopId) => {
-	const { data: order, error: orderError } = await supabase
-		.from("orders")
-		.select(
-			`
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select(
+      `
       *,
       customers (nama, nomor_hp, alamat, latitude, longitude),
       detail_orders (*, services (*)),
       shops (lat_toko, long_toko)
     `,
-		)
-		.eq("id_orders", orderId)
-		.eq("id_shops", shopId)
-		.single();
+    )
+    .eq("id_orders", orderId)
+    .eq("id_shops", shopId)
+    .single();
 
-	if (orderError) throw orderError;
+  if (orderError) throw orderError;
 
-	const { data: logs, error: logsError } = await supabase
-		.from("tracking_logs")
-		.select(
-			`
-      *,
+  // Timeline dari order_status_history
+  const { data: timeline, error: timelineError } = await supabase
+    .from("order_status_history")
+    .select(
+      `
+      id_history,
+      status,
+      keterangan,
+      changed_by_role,
+      created_at,
       staff (
         id_staff,
         staff_profile (nama)
       )
     `,
-		)
-		.eq("id_orders", orderId)
-		.order("waktu", { ascending: false });
+    )
+    .eq("id_orders", orderId)
+    .order("created_at", { ascending: true });
 
-	if (logsError) throw logsError;
+  if (timelineError) throw timelineError;
 
-	return {
-		order,
-		tracking_logs: logs,
-	};
+  // GPS logs terbaru dari tracking_logs
+  const { data: gpsLogs, error: gpsError } = await supabase
+    .from("tracking_logs")
+    .select("*")
+    .eq("id_orders", orderId)
+    .eq("log_type", "gps_update")
+    .order("waktu", { ascending: false })
+    .limit(20);
+
+  if (gpsError) throw gpsError;
+
+  const timelineNormalized = (timeline || []).map((item) => ({
+    id_history: item.id_history,
+    status: item.status,
+    keterangan: item.keterangan,
+    changed_by_role: item.changed_by_role,
+    created_at: item.created_at,
+    nama_staff: item.staff?.staff_profile?.nama ?? null,
+  }));
+
+  return {
+    order,
+    timeline: timelineNormalized,
+    gps_logs: gpsLogs || [],
+  };
 };
 
 exports.getLatestLocation = async (orderId, shopId) => {
-	const { data: order, error: orderError } = await supabase
-		.from("orders")
-		.select(
-			`
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select(
+      `
       id_orders,
       kode_order,
       status_order,
       customers (nama, latitude, longitude),
       shops (lat_toko, long_toko)
     `,
-		)
-		.eq("id_orders", orderId)
-		.eq("id_shops", shopId)
-		.single();
+    )
+    .eq("id_orders", orderId)
+    .eq("id_shops", shopId)
+    .single();
 
-	if (orderError) throw orderError;
+  if (orderError) throw orderError;
 
-	const { data: latestLog, error: logsError } = await supabase
-		.from("tracking_logs")
-		.select("*")
-		.eq("id_orders", orderId)
-		.order("waktu", { ascending: false })
-		.limit(1)
-		.single();
+  // Ambil GPS terbaru dari tracking_logs
+  const { data: latestLog } = await supabase
+    .from("tracking_logs")
+    .select("*")
+    .eq("id_orders", orderId)
+    .eq("log_type", "gps_update")
+    .order("waktu", { ascending: false })
+    .limit(1)
+    .single();
 
-	// If latestLog is empty, it's not an error, just no logs yet
-	return {
-		order,
-		latest_log: latestLog || null,
-	};
+  return {
+    order,
+    latest_location: latestLog || null,
+  };
 };
 
+// Khusus update lokasi GPS real-time saat kurir bergerak
 exports.updateLocation = async (orderId, shopId, payload) => {
-	const { latitude, longitude, id_staff, status } = payload;
+  const { latitude, longitude, id_staff, status } = payload;
 
-	const { error: orderError } = await supabase
-		.from("orders")
-		.select("id_orders", { head: true })
-		.eq("id_orders", orderId)
-		.eq("id_shops", shopId)
-		.single();
+  const { error: orderError } = await supabase
+    .from("orders")
+    .select("id_orders", { head: true })
+    .eq("id_orders", orderId)
+    .eq("id_shops", shopId)
+    .single();
 
-	if (orderError) throw orderError;
+  if (orderError) throw orderError;
 
-	const { error: logError } = await supabase.from("tracking_logs").insert([
-		{
-			id_orders: orderId,
-			status: status || "sedang_diantar",
-			keterangan: "Update lokasi kurir",
-			latitude: latitude,
-			longitude: longitude,
-			id_staff: id_staff,
-			waktu: new Date().toISOString(),
-		},
-	]);
+  // Hanya insert GPS log, tidak ubah status
+  await insertGpsLog(
+    orderId,
+    id_staff,
+    status || "sedang_diantar",
+    latitude,
+    longitude,
+  );
 
-	if (logError) throw logError;
-	return { success: true };
+  return { success: true };
 };
 
+// Update status via scan QR oleh staff
 exports.updateStatus = async (orderId, shopId, payload) => {
-	const {
-		status,
-		keterangan,
-		latitude,
-		longitude,
-		id_staff,
-		id_detail_orders,
-		foto_type,
-		is_validation,
-	} = payload;
+  const {
+    status,
+    keterangan,
+    latitude,
+    longitude,
+    id_staff,
+    id_detail_orders,
+    foto_type,
+    is_validation,
+  } = payload;
 
-	const normalizedStatus = normalizeStatus(status);
-	const orderUpdateData = {};
+  const normalizedStatus = normalizeStatus(status);
 
-	if (
-		normalizedStatus &&
-		(DELIVERY_STATUSES.has(normalizedStatus) ||
-			PICKUP_STATUSES.has(normalizedStatus))
-	) {
-		const { data: orderInfo, error: orderInfoError } = await supabase
-			.from("orders")
-			.select("status_order, metode_pengambilan")
-			.eq("id_orders", orderId)
-			.eq("id_shops", shopId)
-			.single();
+  // Validasi status hanya boleh yang valid untuk staff
+  if (!STATUS_VALID_STAFF.has(normalizedStatus)) {
+    throw new Error(
+      `Status tidak valid untuk staff. Pilihan: ${[...STATUS_VALID_STAFF].join(", ")}`,
+    );
+  }
 
-		if (orderInfoError) throw orderInfoError;
+  // Ambil data order saat ini
+  const { data: orderInfo, error: orderInfoError } = await supabase
+    .from("orders")
+    .select("status_order, metode_order")
+    .eq("id_orders", orderId)
+    .eq("id_shops", shopId)
+    .single();
 
-		const metodePengambilan = normalizeStatus(
-			orderInfo.metode_pengambilan || "pickup",
-		);
-		const orderStatus = normalizeStatus(orderInfo.status_order);
+  if (orderInfoError) throw orderInfoError;
 
-		if (
-			DELIVERY_STATUSES.has(normalizedStatus) &&
-			metodePengambilan !== "delivery"
-		) {
-			throw new Error(
-				"Status pengantaran hanya untuk metode_pengambilan delivery.",
-			);
-		}
+  const currentStatus = normalizeStatus(orderInfo.status_order);
+  const metodeOrder = normalizeStatus(orderInfo.metode_order || "offline");
 
-		if (
-			PICKUP_STATUSES.has(normalizedStatus) &&
-			metodePengambilan !== "pickup"
-		) {
-			throw new Error("Status pickup hanya untuk metode_pengambilan pickup.");
-		}
+  // Validasi flow transisi
+  const allFlows = [PICKUP_FLOW, WASH_FLOW, DELIVERY_FLOW];
+  const isValidTransition = allFlows.some((flow) =>
+    isValidFlowTransition(currentStatus, normalizedStatus, flow),
+  );
 
-		const flow = PICKUP_STATUSES.has(normalizedStatus)
-			? PICKUP_FLOW
-			: DELIVERY_FLOW;
+  // Khusus offline: tidak boleh ada status pickup & delivery
+  if (metodeOrder === "offline") {
+    if (
+      ["sedang_dijemput", "sudah_dijemput", "sedang_diantar"].includes(
+        normalizedStatus,
+      )
+    ) {
+      throw new Error("Order offline tidak memiliki proses pickup/delivery.");
+    }
+  }
 
-		if (!isValidFlowTransition(orderStatus, normalizedStatus, flow)) {
-			throw new Error(
-				`Transisi status tidak valid: ${orderStatus || "-"} -> ${normalizedStatus}`,
-			);
-		}
-	}
+  if (!isValidTransition) {
+    throw new Error(
+      `Transisi status tidak valid: ${currentStatus} -> ${normalizedStatus}`,
+    );
+  }
 
-	if (
-		normalizedStatus &&
-		(WASH_STATUSES.has(normalizedStatus) ||
-			PICKUP_STATUSES.has(normalizedStatus) ||
-			DELIVERY_STATUSES.has(normalizedStatus))
-	) {
-		orderUpdateData.status_order = normalizedStatus;
-	}
+  // Update cache status di tabel orders
+  const orderUpdateData = { status_order: normalizedStatus };
 
-	if (is_validation && payload.foto_url) {
-		orderUpdateData.foto_validasi = payload.foto_url;
-	}
+  if (is_validation && payload.foto_url) {
+    orderUpdateData.foto_validasi = payload.foto_url;
+  }
 
-	let orderData;
+  const { data: orderData, error: updateError } = await supabase
+    .from("orders")
+    .update(orderUpdateData)
+    .eq("id_orders", orderId)
+    .eq("id_shops", shopId)
+    .select()
+    .single();
 
-	if (Object.keys(orderUpdateData).length > 0) {
-		const { data, error } = await supabase
-			.from("orders")
-			.update(orderUpdateData)
-			.eq("id_orders", orderId)
-			.eq("id_shops", shopId)
-			.select()
-			.single();
+  if (updateError) throw updateError;
 
-		if (error) throw error;
-		orderData = data;
-	} else {
-		const { data, error } = await supabase
-			.from("orders")
-			.select("*")
-			.eq("id_orders", orderId)
-			.eq("id_shops", shopId)
-			.single();
+  // Insert milestone ke order_status_history
+  await insertStatusHistory(
+    orderId,
+    normalizedStatus,
+    "staff",
+    id_staff,
+    keterangan,
+  );
 
-		if (error) throw error;
-		orderData = data;
-	}
+  // Kalau status butuh GPS, insert juga ke tracking_logs
+  if (STATUS_GPS.has(normalizedStatus) && latitude && longitude) {
+    await insertGpsLog(
+      orderId,
+      id_staff,
+      normalizedStatus,
+      latitude,
+      longitude,
+    );
+  }
 
-	// 2. Add tracking log with geolocation
-	const { error: logError } = await supabase.from("tracking_logs").insert([
-		{
-			id_orders: orderId,
-			status: normalizedStatus || status,
-			keterangan: keterangan,
-			latitude: latitude,
-			longitude: longitude,
-			id_staff: id_staff,
-			waktu: new Date().toISOString(),
-		},
-	]);
+  // Update foto sebelum/sesudah di detail_orders jika ada
+  if (id_detail_orders && payload.foto_url && !is_validation) {
+    const updateObj = {};
+    if (foto_type === "sebelum") updateObj.foto_sebelum = payload.foto_url;
+    if (foto_type === "sesudah") updateObj.foto_sesudah = payload.foto_url;
 
-	if (logError) throw logError;
+    if (Object.keys(updateObj).length > 0) {
+      await supabase
+        .from("detail_orders")
+        .update(updateObj)
+        .eq("id_detail_orders", id_detail_orders);
+    }
+  }
 
-	// 3. Update detail_orders photo if provided (for processing phase)
-	if (id_detail_orders && payload.foto_url && !is_validation) {
-		const updateObj = {};
-		if (foto_type === "sebelum") updateObj.foto_sebelum = payload.foto_url;
-		if (foto_type === "sesudah") updateObj.foto_sesudah = payload.foto_url;
-
-		if (Object.keys(updateObj).length > 0) {
-			await supabase
-				.from("detail_orders")
-				.update(updateObj)
-				.eq("id_detail_orders", id_detail_orders);
-		}
-	}
-
-	return orderData;
+  return orderData;
 };
 
 exports.uploadImage = async (file) => {
-	const timestamp = Date.now();
-	const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-	const fileExt = file.originalname.split(".").pop();
-	const fileName = `tracking_${timestamp}_${randomStr}.${fileExt}`;
-	const filePath = `tracking/${fileName}`;
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const fileExt = file.originalname.split(".").pop();
+  const fileName = `tracking_${timestamp}_${randomStr}.${fileExt}`;
+  const filePath = `tracking/${fileName}`;
 
-	const { data, error } = await supabase.storage
-		.from("services")
-		.upload(filePath, file.buffer, {
-			contentType: file.mimetype,
-		});
+  const { data, error } = await supabase.storage
+    .from("services")
+    .upload(filePath, file.buffer, { contentType: file.mimetype });
 
-	if (error) throw error;
+  if (error) throw error;
 
-	const { data: publicUrlData } = supabase.storage
-		.from("services")
-		.getPublicUrl(filePath);
+  const { data: publicUrlData } = supabase.storage
+    .from("services")
+    .getPublicUrl(filePath);
 
-	return publicUrlData.publicUrl;
+  return publicUrlData.publicUrl;
 };
 
 exports.deleteImage = async (url) => {
-	try {
-		const path = url.split("/storage/v1/object/public/services/")[1];
-		if (path) {
-			await supabase.storage.from("services").remove([path]);
-		}
-	} catch (error) {
-		console.error("Failed to delete image:", error);
-	}
+  try {
+    const path = url.split("/storage/v1/object/public/services/")[1];
+    if (path) await supabase.storage.from("services").remove([path]);
+  } catch (error) {
+    console.error("Failed to delete image:", error);
+  }
 };
