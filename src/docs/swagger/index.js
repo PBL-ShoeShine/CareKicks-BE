@@ -48,6 +48,10 @@ const openapi = {
       description: "Manajemen data staff",
     },
     {
+      name: "Admin Metode Pembayaran",
+      description: "Manajemen metode pembayaran toko (bank, e-wallet, QRIS)",
+    },
+    {
       name: "Admin Pemindai",
       description: "Admin QR Code scanner for orders",
     },

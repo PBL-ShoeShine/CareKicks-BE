@@ -14,6 +14,7 @@ const customerOrderSchemas = require("./customer_order");   // ← punya kamu
 const customerPaymentSchemas = require("./customer_payment"); // ← punya kamu
 const customerBankSchemas = require("./customer_bank");     // ← punya kamu
 const customerProfileSchemas = require("./customer_profile");
+const metodePembayaranSchemas = require("./metode_pembayaran");
 
 module.exports = {
   ...sharedSchemas,
@@ -32,4 +33,5 @@ module.exports = {
   ...customerPaymentSchemas,  // ← punya kamu
   ...customerBankSchemas,     // ← punya kamu
   ...customerProfileSchemas,
+  ...metodePembayaranSchemas,
 };

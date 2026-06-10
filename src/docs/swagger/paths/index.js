@@ -14,6 +14,7 @@ const customerDetailOrderPaths = require("./customer/detail_order"); // ← puny
 const customerPaymentPaths = require("./customer/payment");      // ← punya kamu
 const customerProfilePaths = require("./customer/profile");
 const customerAddressPaths = require("./customer/address");
+const adminMetodePembayaranPaths = require("./admin/metode_pembayaran");
 
 module.exports = {
   ...userAuthPaths,
@@ -32,4 +33,5 @@ module.exports = {
   ...customerPaymentPaths,    // ← punya kamu
   ...customerProfilePaths,
   ...customerAddressPaths,
+  ...adminMetodePembayaranPaths,
 };
