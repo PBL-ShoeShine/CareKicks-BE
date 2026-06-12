@@ -63,7 +63,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${PORT}`);
   console.log(
-    `📖 Dokumentasi Swagger aktif di: http://172.16.161.95:${PORT}/api-docs`,
+    `📖 Dokumentasi Swagger aktif di: http://10.137.229.70:${PORT}/api-docs`,
   );
   console.log("\n===== DAFTAR RUTE AKTIF =====");
   console.table(

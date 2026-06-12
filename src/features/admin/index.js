@@ -37,5 +37,11 @@ router.use("/manajemen_staff", require("./manajemen_staff/manajemen_staff.routes
 // 10. Admin Pemindai routes 
 router.use("/pemindai", require("./pemindai/pemindai.routes"));
 
+// 11. Admin Metode Pembayaran routes
+router.use(
+  "/metode_pembayaran",
+  require("./metode_pembayaran/metode_pembayaran.routes")
+);
+
 // Export router utama
 module.exports = router;
