@@ -57,8 +57,9 @@ const confirmPayment = async (orderId, paymentProofUrl) => {
     .from("orders")
     .update({
       upload_bkt_byr: paymentProofUrl,
-      status_pembayaran: "menunggu_verifikasi",
+      status_pembayaran: "unpaid",
       status_order: "menunggu_konfirmasi",
+      alasan_tolak_pembayaran: null,
     })
     .eq("id_orders", orderId);
 

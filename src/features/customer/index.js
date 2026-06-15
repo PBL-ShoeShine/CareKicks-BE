@@ -10,4 +10,6 @@ router.use("/payments", require("./payment/payment.routes"));
 router.use("/profile", require("./profile/profile.routes"));
 // 5. Customer Alamat routes
 router.use("/addresses", require("./profile/alamat.routes"));
+// 6. Customer Notifications routes
+router.use("/notifications", require("./notifications/notifications.routes"));
 module.exports = router;

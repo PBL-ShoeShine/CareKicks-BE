@@ -1,14 +1,22 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
+const pushNotification = require("../../../core/services/push-notification.service");
 
 const ANTREAN_SELECT = `
   id_orders,
   kode_order,
   status_order,
+  status_pembayaran,
+  upload_bkt_byr,
+  alasan_tolak_pembayaran,
   tgl_order,
   metode_order,
   qr_image,
   link_qr,
+  customers (
+    id_user,
+    nama
+  ),
   detail_orders (
     id_detail_orders,
     merk,
@@ -23,6 +31,7 @@ const ANTREAN_SELECT = `
 
 // Mapping tab antrean ke status enum
 const TAB_STATUS = {
+  pembayaran: ["menunggu_konfirmasi"],
   pesanan_baru: [
     "dikonfirmasi",
     "menunggu_dijemput",
@@ -102,6 +111,48 @@ const insertStatusHistory = async (
     changed_by_role: changedByRole,
   });
   if (error) throw new Error(`Gagal insert history: ${error.message}`);
+};
+
+const notifyCustomerPaymentStatus = async (order, notification) => {
+  const idUser = order?.customers?.id_user;
+  if (!idUser) {
+    console.warn("Notifikasi pembayaran dilewati: id_user customer kosong", {
+      id_orders: order?.id_orders,
+    });
+    return;
+  }
+
+  const payload = {
+    id_user: idUser,
+    id_orders: order.id_orders,
+    title: notification.title,
+    message: notification.body,
+    type_notification: "payment",
+  };
+
+  const { error } = await supabase.from("notification").insert(payload);
+  if (error) {
+    console.error("Gagal insert notification pembayaran:", error.message);
+  }
+
+  try {
+    await pushNotification.sendToUser(
+      idUser,
+      {
+        title: notification.title,
+        body: notification.body,
+      },
+      {
+        type: "payment",
+        id_orders: order.id_orders,
+        kode_order: order.kode_order,
+        status_order: notification.statusOrder,
+        status_pembayaran: notification.statusPembayaran,
+      },
+    );
+  } catch (error) {
+    console.error("Gagal kirim push pembayaran:", error);
+  }
 };
 
 // Ambil antrean by tab
@@ -192,26 +243,56 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     );
   }
 
+  const updatePayload = { status_order: status };
+
+  if (status === "menunggu_pembayaran") {
+    updatePayload.status_pembayaran = "unpaid";
+    updatePayload.alasan_tolak_pembayaran = keterangan;
+  } else if (status === "dikonfirmasi") {
+    updatePayload.status_pembayaran = "paid";
+    updatePayload.alasan_tolak_pembayaran = null;
+  }
+
   // Update status order
-  const { data, error } = await supabase
+  const { data: updatedData, error } = await supabase
     .from("orders")
-    .update({ status_order: status })
+    .update(updatePayload)
     .eq("id_orders", idOrder)
     .eq("id_shops", idShops)
     .select(ANTREAN_SELECT)
     .single();
   if (error) throw new Error(error.message);
+  let data = updatedData;
 
   // Insert history untuk status yang di-set admin
   await insertStatusHistory(idOrder, status, "admin_toko", null, keterangan);
 
+  if (status === "menunggu_pembayaran") {
+    await notifyCustomerPaymentStatus(data, {
+      title: "Pembayaran ditolak",
+      body:
+        keterangan ||
+        `Bukti pembayaran order #${data.kode_order} ditolak. Silakan upload ulang bukti pembayaran.`,
+      statusOrder: "menunggu_pembayaran",
+      statusPembayaran: "unpaid",
+    });
+  }
+
   if (status === "dikonfirmasi") {
     if (data.metode_order === "online") {
       // Online: setelah dikonfirmasi → otomatis menunggu_dijemput
-      await supabase
+      const { data: finalData, error: finalError } = await supabase
         .from("orders")
-        .update({ status_order: "menunggu_dijemput" })
-        .eq("id_orders", idOrder);
+        .update({
+          status_order: "menunggu_dijemput",
+          status_pembayaran: "paid",
+          alasan_tolak_pembayaran: null,
+        })
+        .eq("id_orders", idOrder)
+        .select(ANTREAN_SELECT)
+        .single();
+      if (finalError) throw new Error(finalError.message);
+      data = finalData;
 
       await insertStatusHistory(
         idOrder,
@@ -220,12 +301,23 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
         null,
         "Otomatis menunggu penjemputan setelah pembayaran dikonfirmasi",
       );
+
+      await notifyCustomerPaymentStatus(finalData, {
+        title: "Pembayaran dikonfirmasi",
+        body: `Pembayaran order #${finalData.kode_order} sudah dikonfirmasi. Pesanan menunggu dijemput.`,
+        statusOrder: "menunggu_dijemput",
+        statusPembayaran: "paid",
+      });
     } else if (data.metode_order === "offline") {
       // Offline: setelah dikonfirmasi → otomatis washing
-      await supabase
+      const { data: finalData, error: finalError } = await supabase
         .from("orders")
-        .update({ status_order: "washing" })
-        .eq("id_orders", idOrder);
+        .update({ status_order: "washing", status_pembayaran: "paid" })
+        .eq("id_orders", idOrder)
+        .select(ANTREAN_SELECT)
+        .single();
+      if (finalError) throw new Error(finalError.message);
+      data = finalData;
 
       await insertStatusHistory(
         idOrder,
@@ -234,6 +326,13 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
         null,
         "Otomatis mulai pencucian setelah pesanan offline dikonfirmasi",
       );
+
+      await notifyCustomerPaymentStatus(finalData, {
+        title: "Pembayaran dikonfirmasi",
+        body: `Pembayaran order #${finalData.kode_order} sudah dikonfirmasi. Pesanan mulai diproses.`,
+        statusOrder: "washing",
+        statusPembayaran: "paid",
+      });
     }
   }
 
