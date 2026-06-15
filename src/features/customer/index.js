@@ -12,4 +12,10 @@ router.use("/profile", require("./profile/profile.routes"));
 router.use("/addresses", require("./profile/alamat.routes"));
 // 6. Customer Notifications routes
 router.use("/notifications", require("./notifications/notifications.routes"));
+// 7. Customer Beranda routes
+router.use("/beranda", require("./beranda/beranda.routes"));
+// 8. Customer Detail Layanan (Services) routes
+router.use("/services", require("./detail_layanan/services.routes"));
+// 9. Customer Ulasan routes
+router.use("/ulasan", require("./ulasan/ulasan.routes"));
 module.exports = router;
