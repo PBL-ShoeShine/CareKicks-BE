@@ -21,7 +21,7 @@ const upload = multer({
 router.post(
   "/",
   authMiddleware,
-  upload.single("foto_sepatu"),
+  upload.array("foto_sepatu", 5),
   orderController.createOnlineOrder,
 );
 

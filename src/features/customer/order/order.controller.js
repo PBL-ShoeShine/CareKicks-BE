@@ -12,7 +12,11 @@ exports.createOnlineOrder = async (req, res) => {
       alamat,
       lat_order,
       long_order,
+      total_ongkir,
       catatan,
+      merk,
+      jenis_sepatu,
+      warna,
     } = req.body;
 
     // Parse services dari JSON string (karena dikirim bersama multipart/form-data)
@@ -58,6 +62,27 @@ exports.createOnlineOrder = async (req, res) => {
       });
     }
 
+    if (!merk || merk.trim() === "") {
+      return res.status(400).json({
+        status: "error",
+        message: "merk sepatu wajib diisi",
+      });
+    }
+
+    if (!jenis_sepatu || jenis_sepatu.trim() === "") {
+      return res.status(400).json({
+        status: "error",
+        message: "jenis sepatu wajib dipilih",
+      });
+    }
+
+    if (!warna || warna.trim() === "") {
+      return res.status(400).json({
+        status: "error",
+        message: "warna sepatu wajib diisi",
+      });
+    }
+
     if (!services || !Array.isArray(services) || services.length === 0) {
       return res.status(400).json({
         status: "error",
@@ -83,9 +108,13 @@ exports.createOnlineOrder = async (req, res) => {
       alamat: alamat.trim(),
       lat_order: lat_order ? parseFloat(lat_order) : null,
       long_order: long_order ? parseFloat(long_order) : null,
+      total_ongkir: total_ongkir ? parseFloat(total_ongkir) : 0,
       catatan: catatan?.trim() || null,
+      merk: merk.trim(),
+      jenis_sepatu: jenis_sepatu.trim(),
+      warna: warna.trim(),
       services,
-      fotoFile: req.file || null,
+      fotoFiles: req.files || [],
     });
 
     return res.status(201).json({

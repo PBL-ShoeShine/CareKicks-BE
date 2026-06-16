@@ -73,9 +73,13 @@ exports.createOnlineOrder = async ({
   alamat,
   lat_order,
   long_order,
+  total_ongkir,
   catatan,
+  merk,
+  jenis_sepatu,
+  warna,
   services,
-  fotoFile,
+  fotoFiles,
 }) => {
   // Step 1: Verifikasi toko ada dan aktif
   const { data: shop, error: shopError } = await supabase
@@ -124,29 +128,36 @@ exports.createOnlineOrder = async ({
     serviceMap[svc.id_services] = svc.harga;
   }
 
-  // Step 4: Upload foto sepatu (opsional)
-  let fotoUrl = null;
-  if (fotoFile) {
-    const fileExt = fotoFile.mimetype.split("/")[1] || "jpg";
-    const fileName = `orders/${userId}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+  // Step 4: Upload foto sepatu (multi)
+  let fotoUrls = [];
+  if (fotoFiles && fotoFiles.length > 0) {
+    for (const file of fotoFiles) {
+      const fileExt = file.originalname.split(".").pop() || file.mimetype.split("/")[1] || "jpg";
+      const fileName = `orders/${userId}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("services")
-      .upload(fileName, fotoFile.buffer, {
-        contentType: fotoFile.mimetype,
-        upsert: false,
-      });
+      const { error: uploadError } = await supabase.storage
+        .from("services")
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
 
-    if (uploadError) {
-      throw new Error(`Gagal upload foto: ${uploadError.message}`);
+      if (uploadError) {
+        throw new Error(`Gagal upload foto: ${uploadError.message}`);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("services")
+        .getPublicUrl(fileName);
+
+      fotoUrls.push(publicUrlData.publicUrl);
     }
-
-    const { data: publicUrlData } = supabase.storage
-      .from("services")
-      .getPublicUrl(fileName);
-
-    fotoUrl = publicUrlData.publicUrl;
   }
+
+  if (fotoUrls.length === 0) {
+    throw new Error("Wajib menyertakan minimal 1 foto sepatu.");
+  }
+  const fotoUrlStr = fotoUrls.join(",");
 
   // Step 5: Hitung total harga dari DB (bukan dari client — aman dari manipulasi)
   let totalHarga = 0;
@@ -154,10 +165,28 @@ exports.createOnlineOrder = async ({
     totalHarga += serviceMap[svc.id_services] || 0;
   }
 
-  // Step 6: Generate kode_order dan QR code
-  const timestamp = Date.now();
-  const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-  const kodeOrder = `ORD${timestamp}${randomStr}`;
+  // Step 6: Generate kode_order dan QR code (Format: PREFIX-YYMMDD-XXX)
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const yymmdd = `${yy}${mm}${dd}`;
+
+  // Ambil 3 huruf pertama nama toko sebagai Prefix
+  const cleanName = shop.nm_toko.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const prefix = cleanName.substring(0, 3) || "ORD";
+  
+  // Cari jumlah pesanan hari ini untuk menentukan urutan harian
+  const likePattern = `${prefix}-${yymmdd}-%`;
+  const { count } = await supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true })
+    .ilike("kode_order", likePattern);
+
+  const urutan = (count || 0) + 1;
+  const urutanStr = String(urutan).padStart(3, "0");
+  
+  const kodeOrder = `${prefix}-${yymmdd}-${urutanStr}`;
   const qr = generateQRCode(kodeOrder);
 
   // Step 7: Insert ke tabel orders
@@ -176,7 +205,7 @@ exports.createOnlineOrder = async ({
       long_order,
       qr_image: qr.filename,
       link_qr: qr.url,
-      total_ongkir: 0,
+      total_ongkir,
       status_pembayaran: "unpaid",
       upload_bkt_byr: null,
     })
@@ -191,10 +220,10 @@ exports.createOnlineOrder = async ({
   const detailInserts = services.map((svc) => ({
     id_orders: idOrders,
     id_services: svc.id_services,
-    foto_sebelum: fotoUrl,
-    merk: nama_pemilik, // Nama pemilik sepatu disimpan di field merk sebagai identifikasi
-    jenis_sepatu: "-",
-    warna: "-",
+    foto_sebelum: fotoUrlStr,
+    merk: merk,
+    jenis_sepatu: jenis_sepatu,
+    warna: warna,
     catatan: catatan || null,
     review: null,
     foto_sesudah: null,
@@ -250,7 +279,7 @@ exports.createOnlineOrder = async ({
     status_pembayaran: orderData.status_pembayaran,
     total_harga: totalHarga,
     qr_code: qr.url,
-    foto_sepatu_url: fotoUrl,
+    foto_sepatu_url: fotoUrls[0], // Return first url for frontend quick view
     nm_toko: shop.nm_toko,
     services: validServices.map((s) => ({
       id_services: s.id_services,
@@ -264,7 +293,7 @@ exports.createOnlineOrder = async ({
 exports.getServicesByShop = async (idShops) => {
   const { data: shop, error: shopError } = await supabase
     .from("shops")
-    .select("id_shops, nm_toko")
+    .select("id_shops, nm_toko, lat_toko, long_toko")
     .eq("id_shops", idShops)
     .single();
 
@@ -286,6 +315,8 @@ exports.getServicesByShop = async (idShops) => {
   return {
     nm_toko: shop.nm_toko,
     id_shops: shop.id_shops,
+    lat_toko: shop.lat_toko,
+    long_toko: shop.long_toko,
     services: services || [],
   };
 };
