@@ -43,5 +43,8 @@ router.use(
   require("./metode_pembayaran/metode_pembayaran.routes")
 );
 
+// 12. Admin Konfirmasi Pesanan routes
+router.use("/konfirmasi_pesanan", require("./konfirmasi_pesanan/konfirmasi_pesanan.routes"));
+
 // Export router utama
 module.exports = router;
