@@ -114,7 +114,12 @@ const insertStatusHistory = async (
 };
 
 const notifyCustomerPaymentStatus = async (order, notification) => {
-  const idUser = order?.customers?.id_user;
+  // Supabase bisa mengembalikan relation sebagai object atau array
+  const customerData = Array.isArray(order?.customers)
+    ? order.customers[0]
+    : order?.customers;
+
+  const idUser = customerData?.id_user;
   if (!idUser) {
     console.warn("Notifikasi pembayaran dilewati: id_user customer kosong", {
       id_orders: order?.id_orders,
