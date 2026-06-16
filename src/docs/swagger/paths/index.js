@@ -11,6 +11,8 @@ const adminProfilePaths = require("./admin/profile");
 const adminUbahPasswordPaths = require("./admin/ubah_password");
 const customerRiwayatPaths = require("./customer/riwayat");
 const customerDetailOrderPaths = require("./customer/detail_order");
+const customerOrderPaths = require("./customer/order");
+const customerProfilePaths = require("./customer/profile");
 const customerPaymentPaths = require("./customer/payment");
 const adminBankPaths = require("./admin/bank");
 
@@ -29,5 +31,7 @@ module.exports = {
   ...adminBankPaths,
   ...customerRiwayatPaths,
   ...customerDetailOrderPaths,
+  ...customerOrderPaths,
+  ...customerProfilePaths,
   ...customerPaymentPaths,
 };

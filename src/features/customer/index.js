@@ -18,4 +18,6 @@ router.use("/beranda", require("./beranda/beranda.routes"));
 router.use("/services", require("./detail_layanan/services.routes"));
 // 9. Customer Ulasan routes
 router.use("/ulasan", require("./ulasan/ulasan.routes"));
+// 10. Customer Order (Buat Pesanan Online) routes
+router.use("/order", require("./order/order.routes"));
 module.exports = router;

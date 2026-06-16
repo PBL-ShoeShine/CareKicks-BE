@@ -60,6 +60,10 @@ const openapi = {
       description: "Manajemen metode pembayaran oleh admin",
     },
     {
+      name: "Customer - Order",
+      description: "Pemesanan online oleh customer",
+    },
+    {
       name: "Customer - Riwayat",
       description: "Riwayat pesanan customer",
     },

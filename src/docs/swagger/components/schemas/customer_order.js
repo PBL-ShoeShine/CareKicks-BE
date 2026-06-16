@@ -64,4 +64,90 @@ module.exports = {
       },
     },
   },
+
+  CreateOrderRequest: {
+    type: "object",
+    required: ["id_shops", "nama_pemilik", "no_hp", "alamat", "services"],
+    properties: {
+      id_shops: { type: "integer", example: 1 },
+      nama_pemilik: { type: "string", example: "Budi Santoso" },
+      no_hp: { type: "string", example: "081234567890" },
+      alamat: { type: "string", example: "Jl. Ahmad Yani No. 10" },
+      lat_order: { type: "number", format: "float", example: -6.9824 },
+      long_order: { type: "number", format: "float", example: 110.4323 },
+      catatan: { type: "string", example: "Sepatu warna putih" },
+      services: {
+        type: "string",
+        description: "JSON array string of service IDs, e.g., '[{\"id_services\":1}]'",
+        example: '[{"id_services":1}]',
+      },
+      foto_sepatu: {
+        type: "string",
+        format: "binary",
+        description: "Foto sepatu sebelum dicuci",
+      },
+    },
+  },
+
+  CreateOrderResponse: {
+    type: "object",
+    properties: {
+      status: { type: "string", example: "success" },
+      message: { type: "string", example: "Pesanan berhasil dibuat. Silakan lakukan pembayaran." },
+      data: {
+        type: "object",
+        properties: {
+          id_orders: { type: "integer", example: 101 },
+          kode_order: { type: "string", example: "ORD1623830400000ABC" },
+          tgl_order: { type: "string", format: "date-time" },
+          status_order: { type: "string", example: "pending" },
+          status_pembayaran: { type: "string", example: "unpaid" },
+          total_harga: { type: "number", example: 50000 },
+          qr_code: { type: "string", example: "https://api.qrserver.com/v1/..." },
+          foto_sepatu_url: { type: "string", example: "https://.../services/orders/..." },
+          nm_toko: { type: "string", example: "Shoes Cleaner Semarang" },
+          services: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id_services: { type: "integer" },
+                nama_layanan: { type: "string" },
+                harga: { type: "number" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
+  ShopServicesResponse: {
+    type: "object",
+    properties: {
+      status: { type: "string", example: "success" },
+      message: { type: "string", example: "Daftar layanan berhasil diambil" },
+      data: {
+        type: "object",
+        properties: {
+          nm_toko: { type: "string", example: "Shoes Cleaner Semarang" },
+          id_shops: { type: "integer", example: 1 },
+          services: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id_services: { type: "integer" },
+                nama_layanan: { type: "string" },
+                harga: { type: "number" },
+                estimasi_waktu: { type: "string" },
+                deskripsi: { type: "string" },
+                is_active: { type: "boolean" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };
