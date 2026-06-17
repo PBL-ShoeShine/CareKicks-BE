@@ -1,7 +1,7 @@
 const supabase = require("../../../core/config/supabase");
 
 const getDetailOrder = async (orderId, customerId) => {
-  // Ambil data order
+  // Ambil data order (beserta data pembayaran yang sudah ada di tabel ini)
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .select(
@@ -41,10 +41,6 @@ const getDetailOrder = async (orderId, customerId) => {
   if (itemsError) throw new Error(itemsError.message);
 
   // Ambil timeline dari order_status_history
-  // FIX: join path yang benar:
-  //   order_status_history.id_staff
-  //     → staff.id_staff_profile
-  //       → staff_profile.nama
   const { data: timeline, error: timelineError } = await supabase
     .from("order_status_history")
     .select(
@@ -78,33 +74,17 @@ const getDetailOrder = async (orderId, customerId) => {
     nama_staff: item.staff?.staff_profile?.nama ?? null,
   }));
 
-  // Ambil data payment terkait order ini
-  const { data: payment, error: paymentError } = await supabase
-    .from("payments")
-    .select(
-      `
-      id_payment,
-      status_pembayaran,
-      metode_pembayaran,
-      bukti_pembayaran,
-      created_at
-    `,
-    )
-    .eq("id_orders", orderId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  // payment boleh null kalau belum ada, jadi error-nya tidak di-throw
-  if (paymentError) {
-    console.error("Payment fetch error:", paymentError.message);
-  }
-
+  // Susun data untuk dikirim ke frontend
   return {
     order,
     items,
     timeline: timelineNormalized,
-    payment: payment ?? null,
+    // Ambil data payment langsung dari kolom tabel orders
+    payment: {
+      status_pembayaran: order.status_pembayaran ?? null,
+      metode_pembayaran: order.metode_bayar ?? null,
+      bukti_pembayaran: order.upload_bkt_byr ?? null,
+    },
   };
 };
 
