@@ -57,10 +57,10 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran") => {
     query = query.eq("status_order", "pending");
   } else if (tab === "pembayaran") {
     // 2. Pembayaran: Customer sudah upload bukti bayar
-    query = query.eq("status_pembayaran", "waiting_confirmation");
+    query = query.eq("status_order", "menunggu_konfirmasi").eq("status_pembayaran", "unpaid");
   } else if (tab === "pesanan_baru") {
     // 3. Pesanan Baru: Sudah dikonfirmasi & dibayar, siap dikerjakan
-    query = query.eq("status_order", "pesanan_baru");
+    query = query.eq("status_order", "menunggu_dijemput");
   }
 
   const { data, error } = await query;
@@ -83,7 +83,7 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran") => {
  */
 exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
   const statusPembayaran = action === "approve" ? "paid" : "rejected";
-  const statusOrder = action === "approve" ? "pesanan_baru" : "menunggu_pembayaran";
+  const statusOrder = action === "approve" ? "menunggu_dijemput" : "menunggu_pembayaran";
 
   const updateData = {
     status_pembayaran: statusPembayaran,
@@ -172,8 +172,8 @@ const getDummyOrders = (tab) => {
         id_orders: 991,
         kode_order: "CK-DUMMY-PAY-001",
         tgl_order: new Date().toISOString(),
-        status_order: "menunggu_pembayaran",
-        status_pembayaran: "waiting_confirmation",
+        status_order: "menunggu_konfirmasi",
+        status_pembayaran: "unpaid",
         metode_order: "delivery",
         metode_bayar: "transfer_bank",
         upload_bkt_byr: "https://placehold.co/600x400?text=Bukti+Bayar+Dummy",
@@ -248,7 +248,7 @@ const getDummyOrders = (tab) => {
         id_orders: 993,
         kode_order: "CK-DUMMY-NEW-003",
         tgl_order: new Date().toISOString(),
-        status_order: "pesanan_baru",
+        status_order: "menunggu_dijemput",
         status_pembayaran: "paid",
         metode_order: "delivery",
         metode_bayar: "transfer_bank",
