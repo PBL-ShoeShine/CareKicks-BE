@@ -94,7 +94,12 @@ exports.getServices = async (shopId, searchQuery = "", category = "") => {
 
     if (error) throw error;
 
-    return data || [];
+    // Filter out soft-deleted services
+    const activeServices = (data || []).filter(
+      (s) => !s.nama_layanan.startsWith("deleted_")
+    );
+
+    return activeServices;
   } catch (error) {
     console.error("Error getting services:", error);
     throw error;
@@ -165,7 +170,7 @@ exports.deleteService = async (serviceId, shopId) => {
   try {
     const { data: existingService, error: fetchError } = await supabase
       .from("services")
-      .select("id_services, foto_layanan")
+      .select("id_services, foto_layanan, nama_layanan")
       .eq("id_services", serviceId)
       .eq("id_shops", shopId)
       .single();
@@ -174,23 +179,49 @@ exports.deleteService = async (serviceId, shopId) => {
       throw new Error("Service not found or unauthorized");
     }
 
-    // hapus gambar lama
-    if (existingService.foto_layanan) {
-      await exports.deleteServiceImage(existingService.foto_layanan);
+    try {
+      const { error } = await supabase
+        .from("services")
+        .delete()
+        .eq("id_services", serviceId)
+        .eq("id_shops", shopId);
+
+      if (error) throw error;
+
+      // Hapus gambar dari storage HANYA jika berhasil didelete secara fisik
+      if (existingService.foto_layanan) {
+        await exports.deleteServiceImage(existingService.foto_layanan);
+      }
+
+      return {
+        success: true,
+        message: "Service deleted successfully",
+      };
+    } catch (dbError) {
+      if (dbError.code === "23503" || (dbError.message && dbError.message.toLowerCase().includes("foreign key"))) {
+        const timestamp = Date.now();
+        const softDeletedName = `deleted_${timestamp}_${existingService.nama_layanan}`;
+        
+        const { error: updateError } = await supabase
+          .from("services")
+          .update({
+            is_active: false,
+            nama_layanan: softDeletedName
+          })
+          .eq("id_services", serviceId)
+          .eq("id_shops", shopId);
+
+        if (updateError) throw updateError;
+
+        return {
+          success: true,
+          message: "Service deleted successfully",
+          isSoftDeleted: true
+        };
+      } else {
+        throw dbError;
+      }
     }
-
-    const { error } = await supabase
-      .from("services")
-      .delete()
-      .eq("id_services", serviceId)
-      .eq("id_shops", shopId);
-
-    if (error) throw error;
-
-    return {
-      success: true,
-      message: "Service deleted successfully",
-    };
   } catch (error) {
     console.error("Error deleting service:", error);
     throw error;

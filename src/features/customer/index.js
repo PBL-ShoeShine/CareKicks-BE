@@ -33,4 +33,7 @@ router.use("/ulasan", require("./ulasan/ulasan.routes"));
 
 // 11. Customer Shop Profile routes
 router.use("/shops", require("./shop/shop.routes"));
+// 12. Customer Cart routes
+router.use("/cart", require("./cart/cart.routes"));
+
 module.exports = router;
