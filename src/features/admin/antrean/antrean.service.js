@@ -25,7 +25,11 @@ const ANTREAN_SELECT = `
     foto_sebelum,
     foto_sesudah,
     id_services,
-    total_harga
+    total_harga,
+    services (
+      id_services,
+      nama_layanan
+    )
   )
 `;
 
@@ -38,8 +42,10 @@ const TAB_STATUS = {
     "sedang_dijemput",
     "sudah_dijemput",
   ],
+  pickup: ["menunggu_dijemput", "sedang_dijemput", "sudah_dijemput"],
   sedang_dicuci: ["washing"],
   siap: ["selesai_cuci"],
+  delivery: ["sedang_diantar", "selesai"],
 };
 
 // Status yang boleh diupdate oleh admin toko
@@ -170,7 +176,7 @@ exports.getAllAntrean = async (authUser, tab) => {
     .from("orders")
     .select(ANTREAN_SELECT)
     .eq("id_shops", idShops)
-    .order("tgl_order", { ascending: true });
+    .order("tgl_order", { ascending: false });
 
   if (statusFilter) {
     query = query.in("status_order", statusFilter);

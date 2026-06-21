@@ -31,6 +31,19 @@ const normalizeStatus = (value) =>
   typeof value === "string" ? value.trim().toLowerCase() : value;
 
 const isValidFlowTransition = (currentStatus, nextStatus, flow) => {
+  if (flow === WASH_FLOW) {
+    if (
+      (currentStatus === "sudah_dijemput" || currentStatus === "dikonfirmasi") &&
+      nextStatus === "washing"
+    ) {
+      return true;
+    }
+    if (currentStatus === "washing" && nextStatus === "selesai_cuci") {
+      return true;
+    }
+    return false;
+  }
+
   const currentIndex = flow.indexOf(currentStatus);
   const nextIndex = flow.indexOf(nextStatus);
   if (nextIndex < 0) return false;
