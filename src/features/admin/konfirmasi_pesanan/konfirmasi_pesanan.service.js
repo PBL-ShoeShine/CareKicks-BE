@@ -45,7 +45,7 @@ const ORDER_SELECT = `
  * @param {number} id_shops 
  * @param {string} tab - 'pesanan_masuk', 'pembayaran', 'pesanan_baru'
  */
-exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran") => {
+exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran", metodeOrder) => {
   let query = supabase
     .from("orders")
     .select(ORDER_SELECT)
@@ -60,7 +60,15 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran") => {
     query = query.eq("status_order", "menunggu_konfirmasi").eq("status_pembayaran", "unpaid");
   } else if (tab === "pesanan_baru") {
     // 3. Pesanan Baru: Sudah dikonfirmasi & dibayar, siap dikerjakan
-    query = query.eq("status_order", "menunggu_dijemput");
+    if (metodeOrder === "offline") {
+      query = query.eq("status_order", "dikonfirmasi");
+    } else {
+      query = query.eq("status_order", "menunggu_dijemput");
+    }
+  }
+
+  if (metodeOrder) {
+    query = query.eq("metode_order", metodeOrder);
   }
 
   const { data, error } = await query;

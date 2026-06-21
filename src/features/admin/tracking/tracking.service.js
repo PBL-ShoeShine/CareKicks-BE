@@ -305,6 +305,7 @@ exports.updateStatus = async (orderId, shopId, payload) => {
   // Update cache status di tabel orders
   const orderUpdateData = { status_order: normalizedStatus };
 
+
   if (is_validation && payload.foto_url) {
     orderUpdateData.foto_validasi = payload.foto_url;
   }

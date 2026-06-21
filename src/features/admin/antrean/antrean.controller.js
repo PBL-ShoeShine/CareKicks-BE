@@ -3,8 +3,8 @@ const antreanService = require("./antrean.service");
 // GET /api/v1/admin/antrean?status=pending
 exports.getAllAntrean = async (req, res) => {
   try {
-    const { tab } = req.query; // ← ganti status jadi tab
-    const data = await antreanService.getAllAntrean(req.user, tab);
+    const { tab, metode_order } = req.query; // ← ganti status jadi tab
+    const data = await antreanService.getAllAntrean(req.user, tab, metode_order);
     return res.status(200).json({
       success: true,
       message: "Data antrean berhasil diambil",

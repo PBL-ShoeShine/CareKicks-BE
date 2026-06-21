@@ -166,11 +166,14 @@ const notifyCustomerPaymentStatus = async (order, notification) => {
   }
 };
 
-// Ambil antrean by tab
-exports.getAllAntrean = async (authUser, tab) => {
+// Ambi antrean by tab
+exports.getAllAntrean = async (authUser, tab, metodeOrder) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
 
-  const statusFilter = TAB_STATUS[tab];
+  let statusFilter = TAB_STATUS[tab];
+  if (tab === "siap" && metodeOrder === "offline") {
+    statusFilter = ["selesai"];
+  }
 
   let query = supabase
     .from("orders")
@@ -180,6 +183,10 @@ exports.getAllAntrean = async (authUser, tab) => {
 
   if (statusFilter) {
     query = query.in("status_order", statusFilter);
+  }
+
+  if (metodeOrder) {
+    query = query.eq("metode_order", metodeOrder);
   }
 
   const { data, error } = await query;
@@ -281,6 +288,7 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     updatePayload.alasan_tolak_pembayaran = null;
   }
 
+
   // Update status order
   const { data: updatedData, error } = await supabase
     .from("orders")
@@ -365,31 +373,6 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
         title: "Pembayaran dikonfirmasi",
         body: `Pembayaran order #${finalData.kode_order} sudah dikonfirmasi. Pesanan menunggu dijemput.`,
         statusOrder: "menunggu_dijemput",
-        statusPembayaran: "paid",
-      });
-    } else if (data.metode_order === "offline") {
-      // Offline: setelah dikonfirmasi → otomatis washing
-      const { data: finalData, error: finalError } = await supabase
-        .from("orders")
-        .update({ status_order: "washing", status_pembayaran: "paid" })
-        .eq("id_orders", idOrder)
-        .select(ANTREAN_SELECT)
-        .single();
-      if (finalError) throw new Error(finalError.message);
-      data = finalData;
-
-      await insertStatusHistory(
-        idOrder,
-        "washing",
-        "system",
-        null,
-        "Otomatis mulai pencucian setelah pesanan offline dikonfirmasi",
-      );
-
-      await notifyCustomerPaymentStatus(finalData, {
-        title: "Pembayaran dikonfirmasi",
-        body: `Pembayaran order #${finalData.kode_order} sudah dikonfirmasi. Pesanan mulai diproses.`,
-        statusOrder: "washing",
         statusPembayaran: "paid",
       });
     }
