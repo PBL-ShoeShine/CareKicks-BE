@@ -64,14 +64,6 @@ exports.createOfflineOrder = async (req, res) => {
       });
     }
 
-    // Validate shoe type
-    if (!["Sneakers", "Leather", "Canvas"].includes(jenis_sepatu)) {
-      return res.status(400).json({
-        success: false,
-        message: "jenis_sepatu must be 'Sneakers', 'Leather', or 'Canvas'",
-      });
-    }
-
     // Validate file upload
     if (!req.file) {
       return res.status(400).json({
