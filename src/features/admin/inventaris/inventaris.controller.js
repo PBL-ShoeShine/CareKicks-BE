@@ -193,3 +193,34 @@ exports.addStock = async (req, res) => {
     });
   }
 };
+
+exports.reduceStock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+
+    if (!amount || isNaN(amount) || Number(amount) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be a positive number",
+      });
+    }
+
+    const shopId = await getShopIdByUser(req.user);
+
+    const updatedItem = await inventarisService.reduceStock(id, shopId, amount);
+
+    return res.status(200).json({
+      success: true,
+      message: "Stock reduced successfully",
+      data: updatedItem,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
