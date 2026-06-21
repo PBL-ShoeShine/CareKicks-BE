@@ -20,7 +20,10 @@ router.use("/antrean", require("./antrean/antrean.routes"));
 router.use("/inputoff", require("./inputoff/inputoff_routes"));
 
 // 5. Admin Manajemen Layanan routes
-router.use("/manajemen_layanan", require("./manajemen_layanan/manajemen_layanan.routes"));
+router.use(
+  "/manajemen_layanan",
+  require("./manajemen_layanan/manajemen_layanan.routes"),
+);
 
 // 6. Admin Inventaris routes
 router.use("/inventaris", require("./inventaris/inventaris.routes"));
@@ -32,19 +35,28 @@ router.use("/toko", require("./toko"));
 router.use("/tracking", require("./tracking"));
 
 // 9. Admin Manajemen Karyawan routes
-router.use("/manajemen_staff", require("./manajemen_staff/manajemen_staff.routes"));
+router.use(
+  "/manajemen_staff",
+  require("./manajemen_staff/manajemen_staff.routes"),
+);
 
-// 10. Admin Pemindai routes 
+// 10. Admin Pemindai routes
 router.use("/pemindai", require("./pemindai/pemindai.routes"));
 
 // 11. Admin Metode Pembayaran routes
 router.use(
   "/metode_pembayaran",
-  require("./metode_pembayaran/metode_pembayaran.routes")
+  require("./metode_pembayaran/metode_pembayaran.routes"),
 );
 
 // 12. Admin Konfirmasi Pesanan routes
-router.use("/konfirmasi_pesanan", require("./konfirmasi_pesanan/konfirmasi_pesanan.routes"));
+router.use(
+  "/konfirmasi_pesanan",
+  require("./konfirmasi_pesanan/konfirmasi_pesanan.routes"),
+);
+
+// 13. Admin mengatur ongkir
+router.use("/ongkir", require("./ongkir/ongkir.routes"));
 
 // Export router utama
 module.exports = router;
