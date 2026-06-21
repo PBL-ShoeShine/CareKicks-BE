@@ -4,7 +4,10 @@ const router = express.Router();
 // 1. User routes
 router.use("/user", require("../features/user/user.routes"));
 
-// 2. Admin routes (Mencakup rute profile, antrean, inventaris, dll)
+// 2. Superadmin routes
+router.use("/superadmin", require("../features/superadmin"));
+
+// 3. Admin routes (Mencakup rute profile, antrean, inventaris, dll)
 router.use("/admin", require("../features/admin"));
 
 // --- TAMBAHAN RUTE UBAH PASSWORD ---
