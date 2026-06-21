@@ -31,4 +31,6 @@ router.use("/notifications", require("./notifications/notifications.routes"));
 // 10. Customer Ulasan routes
 router.use("/ulasan", require("./ulasan/ulasan.routes"));
 
+// 11. Customer Shop Profile routes
+router.use("/shops", require("./shop/shop.routes"));
 module.exports = router;

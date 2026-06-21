@@ -52,8 +52,39 @@ exports.getServiceDetail = async (serviceId) => {
     throw new Error("Layanan tidak tersedia saat ini");
   }
 
-  // 3. Ambil rating toko
+  // 3. Ambil rating toko & Jam Operasional
   const avgRating = await getAverageRating(shop.id_shops);
+  
+  const { data: operatingHours } = await supabase
+    .from("shop_operating_hours")
+    .select("day_of_week, is_open, open_time, close_time")
+    .eq("id_shops", shop.id_shops);
+
+  // Hitung status buka/tutup
+  const now = new Date();
+  const jsDay = now.getDay();
+  const todayDayOfWeek = jsDay === 0 ? 7 : jsDay;
+  const currentTime = now.getHours() * 100 + now.getMinutes();
+  
+  const parseTime = (timeStr) => {
+    if (!timeStr) return null;
+    const parts = timeStr.split(":");
+    return parseInt(parts[0]) * 100 + parseInt(parts[1]);
+  };
+
+  const todayHours = (operatingHours || []).find(h => h.day_of_week === todayDayOfWeek);
+  let isOpen = false;
+  if (todayHours && todayHours.is_open) {
+    const jamBuka = parseTime(todayHours.open_time);
+    const jamTutup = parseTime(todayHours.close_time);
+    if (jamBuka !== null && jamTutup !== null) {
+      if (jamTutup < jamBuka) {
+        isOpen = currentTime >= jamBuka || currentTime <= jamTutup;
+      } else {
+        isOpen = currentTime >= jamBuka && currentTime <= jamTutup;
+      }
+    }
+  }
 
   // 4. (Opsional) Ambil rekomendasi layanan lain dari toko yang sama
   const { data: recommendations } = await supabase
@@ -78,6 +109,7 @@ exports.getServiceDetail = async (serviceId) => {
       foto_toko: shop.foto_toko,
       spesialisasi: shop.spesialisasi,
       rating: avgRating,
+      is_open: isOpen,
     },
     rekomendasi: recommendations || [],
   };
