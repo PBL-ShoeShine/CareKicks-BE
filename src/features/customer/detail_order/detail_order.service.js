@@ -1,8 +1,8 @@
 const supabase = require("../../../core/config/supabase");
 
 const getDetailOrder = async (orderId, customerId) => {
-  // Ambil data order (beserta data pembayaran yang sudah ada di tabel ini)
-  const { data: order, error: orderError } = await supabase
+  // Ambil data order (Ubah .single() menjadi query array biasa agar mencegah crash)
+  const { data: orders, error: orderError } = await supabase
     .from("orders")
     .select(
       `
@@ -17,11 +17,16 @@ const getDetailOrder = async (orderId, customerId) => {
     `,
     )
     .eq("id_orders", orderId)
-    .eq("id_customer", customerId)
-    .single();
+    .eq("id_customer", customerId);
 
   if (orderError) throw new Error(orderError.message);
-  if (!order) throw new Error("Pesanan tidak ditemukan");
+
+  // Jika orders kosong, lempar error yang akan ditangkap sebagai 404 oleh controller
+  if (!orders || orders.length === 0)
+    throw new Error("Pesanan tidak ditemukan");
+
+  // Karena aman dan ada datanya, ambil indeks ke-0
+  const order = orders[0];
 
   // Ambil item detail order
   const { data: items, error: itemsError } = await supabase
@@ -70,7 +75,6 @@ const getDetailOrder = async (orderId, customerId) => {
     keterangan: item.keterangan,
     changed_by_role: item.changed_by_role,
     created_at: item.created_at,
-    // staff.id_staff_profile adalah FK ke staff_profile
     nama_staff: item.staff?.staff_profile?.nama ?? null,
   }));
 
@@ -79,7 +83,6 @@ const getDetailOrder = async (orderId, customerId) => {
     order,
     items,
     timeline: timelineNormalized,
-    // Ambil data payment langsung dari kolom tabel orders
     payment: {
       status_pembayaran: order.status_pembayaran ?? null,
       metode_pembayaran: order.metode_bayar ?? null,

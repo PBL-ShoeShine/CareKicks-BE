@@ -1,55 +1,141 @@
-// docs/swagger/paths/admin/bank.js
 module.exports = {
-  "/admin/bank-accounts": {
+  "/admin/metode_pembayaran": {
     get: {
-      tags: ["Admin Toko"],
-      summary: "Admin: Ambil daftar semua rekening bank toko",
+      tags: ["Admin Metode Pembayaran"],
+      summary: "Ambil daftar semua metode pembayaran toko",
       security: [{ bearerAuth: [] }],
       responses: {
         200: {
-          description: "Daftar rekening bank toko",
+          description: "Berhasil mengambil data",
           content: {
             "application/json": {
-              schema: {
-                type: "array",
-                items: { $ref: "#/components/schemas/BankAccount" },
-              },
+              schema: { $ref: "#/components/schemas/PaymentMethodResponse" },
             },
           },
         },
       },
     },
     post: {
-      tags: ["Admin Toko"],
-      summary: "Admin: Tambah rekening bank baru",
+      tags: ["Admin Metode Pembayaran"],
+      summary: "Tambah metode pembayaran baru",
       security: [{ bearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
           "application/json": {
-            schema: { $ref: "#/components/schemas/BankAccount" },
+            schema: {
+              type: "object",
+              required: ["tipe_pembayaran", "nama_bank", "no_rek", "atas_nama"],
+              properties: {
+                tipe_pembayaran: { type: "string", example: "Transfer Bank" },
+                nama_bank: { type: "string", example: "Mandiri" },
+                no_rek: { type: "string", example: "0987654321" },
+                atas_nama: { type: "string", example: "CareKicks" },
+                is_default: { type: "boolean", example: false },
+              },
+            },
           },
         },
       },
-      responses: { 201: { description: "Rekening berhasil dibuat" } },
+      responses: {
+        201: {
+          description: "Berhasil ditambahkan",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/PaymentMethodSingleResponse",
+              },
+            },
+          },
+        },
+      },
     },
   },
-  "/admin/bank-accounts/{id}": {
+  "/admin/metode_pembayaran/{id}": {
     put: {
-      tags: ["Admin Toko"],
-      summary: "Admin: Update rekening bank",
+      tags: ["Admin Metode Pembayaran"],
+      summary: "Update data metode pembayaran",
+      security: [{ bearerAuth: [] }],
       parameters: [
-        { name: "id", in: "path", required: true, schema: { type: "string" } },
+        { name: "id", in: "path", required: true, schema: { type: "integer" } },
       ],
-      responses: { 200: { description: "Rekening berhasil diupdate" } },
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                nama_bank: { type: "string" },
+                no_rek: { type: "string" },
+                atas_nama: { type: "string" },
+                is_default: { type: "boolean" },
+              },
+            },
+          },
+        },
+      },
+      responses: { 200: { description: "Berhasil diupdate" } },
     },
     delete: {
-      tags: ["Admin Toko"],
-      summary: "Admin: Hapus rekening bank",
+      tags: ["Admin Metode Pembayaran"],
+      summary: "Hapus metode pembayaran",
+      security: [{ bearerAuth: [] }],
       parameters: [
-        { name: "id", in: "path", required: true, schema: { type: "string" } },
+        { name: "id", in: "path", required: true, schema: { type: "integer" } },
       ],
-      responses: { 200: { description: "Rekening berhasil dihapus" } },
+      responses: { 200: { description: "Berhasil dihapus" } },
+    },
+  },
+  "/admin/metode_pembayaran/{id}/status": {
+    patch: {
+      tags: ["Admin Metode Pembayaran"],
+      summary: "Ubah status Aktif/Nonaktif",
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        { name: "id", in: "path", required: true, schema: { type: "integer" } },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["is_active"],
+              properties: { is_active: { type: "boolean" } },
+            },
+          },
+        },
+      },
+      responses: { 200: { description: "Status berhasil diubah" } },
+    },
+  },
+  "/admin/metode_pembayaran/{id}/qris-image": {
+    put: {
+      tags: ["Admin Metode Pembayaran"],
+      summary: "Upload gambar QRIS",
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        { name: "id", in: "path", required: true, schema: { type: "integer" } },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "multipart/form-data": {
+            schema: {
+              type: "object",
+              required: ["image"],
+              properties: {
+                image: {
+                  type: "string",
+                  format: "binary",
+                  description: "File gambar QRIS",
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: { 200: { description: "QRIS berhasil diunggah" } },
     },
   },
 };

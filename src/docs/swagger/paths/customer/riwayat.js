@@ -2,44 +2,48 @@ module.exports = {
   "/customer/riwayat": {
     get: {
       tags: ["Customer - Riwayat"],
-      summary: "Mendapatkan daftar riwayat pesanan customer",
+      summary: "Get order history for the current customer",
       security: [{ bearerAuth: [] }],
       parameters: [
         {
           name: "status",
           in: "query",
+          description: "Filter order history by status_order",
           schema: { type: "string" },
-          description: "Filter pesanan berdasarkan status_order (opsional)"
         },
         {
           name: "search",
           in: "query",
+          description: "Search by kode_order or metode_order (partial match)",
           schema: { type: "string" },
-          description: "Pencarian berdasarkan kode_order atau nama toko (opsional)"
-        }
+        },
       ],
       responses: {
         200: {
-          description: "Berhasil mengambil data riwayat",
+          description: "Order history retrieved successfully",
           content: {
             "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: { type: "string", example: "success" },
-                  data: {
-                    type: "array",
-                    items: { $ref: "#/components/schemas/CustomerOrder" }
-                  }
-                }
-              }
-            }
-          }
+              schema: { $ref: "#/components/schemas/RiwayatResponse" },
+            },
+          },
+        },
+        404: {
+          description: "Customer data not found",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ErrorResponse" },
+            },
+          },
         },
         500: {
-          description: "Terjadi kesalahan pada server"
-        }
-      }
-    }
-  }
+          description: "Server error",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ErrorResponse" },
+            },
+          },
+        },
+      },
+    },
+  },
 };
