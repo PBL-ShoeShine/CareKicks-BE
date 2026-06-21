@@ -216,9 +216,14 @@ exports.deleteService = async (req, res) => {
   } catch (error) {
     console.error(error);
 
+    let message = error.message || "Gagal menghapus layanan";
+    if (error.code === "23503" || (error.message && error.message.toLowerCase().includes("foreign key"))) {
+      message = "Layanan tidak dapat dihapus karena sudah memiliki riwayat pesanan atau ulasan dari pelanggan. Silakan nonaktifkan saja layanan ini agar tidak dapat dipesan lagi oleh pelanggan baru.";
+    }
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: message,
     });
   }
 };
