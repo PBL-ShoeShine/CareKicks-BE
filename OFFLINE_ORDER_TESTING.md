@@ -218,7 +218,7 @@ Expected error:
 }
 ```
 
-### Scenario 5: Invalid Shoe Type (Should fail)
+### Scenario 5: Non-standard Shoe Type (Should succeed)
 ```bash
 curl -X POST http://localhost:3000/api/v1/admin/inputoff \
   -H "Content-Type: application/json" \
@@ -232,11 +232,15 @@ curl -X POST http://localhost:3000/api/v1/admin/inputoff \
   }'
 ```
 
-Expected error:
+Expected response:
 ```json
 {
-  "success": false,
-  "message": "jenis_sepatu must be 'Sneakers', 'Leather', or 'Canvas'"
+  "success": true,
+  "message": "Order offline berhasil dibuat",
+  "data": {
+    "jenis_sepatu": "Sandal",
+    ...
+  }
 }
 ```
 

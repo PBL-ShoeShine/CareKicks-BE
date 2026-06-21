@@ -96,7 +96,7 @@ exports.createOfflineOrder = async (inputData) => {
         id_customer: customerId,
         id_shops,
         tgl_order: new Date(),
-        status_order: "pending",
+        status_order: "dikonfirmasi",
         metode_order: "offline",
         metode_bayar,
         upload_bkt_byr: null,
@@ -169,7 +169,7 @@ exports.createOfflineOrder = async (inputData) => {
       .insert({
         id_orders,
         id_staff: null,
-        status: "pending",
+        status: "dikonfirmasi",
         keterangan: `Order offline dibuat - ${catatan || ""}`,
         changed_by_role: "admin_toko",
       });
@@ -208,7 +208,7 @@ exports.createOfflineOrder = async (inputData) => {
       })),
       qr_code: qr_code.url,
       foto_sebelum_url,
-      status_order: "pending",
+      status_order: "dikonfirmasi",
       tgl_order: new Date(),
     };
   } catch (error) {

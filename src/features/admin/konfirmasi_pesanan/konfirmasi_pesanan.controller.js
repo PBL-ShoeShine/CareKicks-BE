@@ -8,9 +8,9 @@ const shopAccess = require("../../../core/services/shop-access.service");
 exports.getOrders = async (req, res) => {
   try {
     const id_shops = await shopAccess.getShopIdForUser(req.user);
-    const { tab } = req.query; // 'pembayaran' atau 'pesanan_baru'
+    const { tab, metode_order } = req.query; // 'pembayaran' atau 'pesanan_baru'
 
-    const orders = await konfirmasiService.getOrdersToConfirm(id_shops, tab);
+    const orders = await konfirmasiService.getOrdersToConfirm(id_shops, tab, metode_order);
 
     res.status(200).json({
       success: true,

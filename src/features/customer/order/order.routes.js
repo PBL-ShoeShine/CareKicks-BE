@@ -27,6 +27,14 @@ router.post(
 
 // GET /api/v1/customer/order/services/:idShops
 // → Ambil daftar layanan aktif dari toko tertentu (untuk dropdown form)
+// POST /api/v1/customer/order/from-cart
+// → Buat pesanan dari item keranjang yang dipilih
+router.post(
+  "/from-cart",
+  authMiddleware,
+  orderController.createOnlineOrderFromCart,
+);
+
 router.get(
   "/services/:idShops",
   authMiddleware,

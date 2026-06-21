@@ -49,7 +49,7 @@ Authorization: Bearer <jwt_token>
 |-------|------|----------|-------------|-------|
 | `nama_customer` | string | ✓ | Full name of customer | Max 255 chars |
 | `nomor_telepon` | string | ✓ | Phone number | Format: 08xx... or +62xx... |
-| `jenis_sepatu` | string | ✓ | Shoe type | Must be: `Sneakers`, `Leather`, or `Canvas` |
+| `jenis_sepatu` | string | ✓ | Shoe type | e.g., Sneakers, Leather, Canvas, Boots, etc. |
 | `services` | array | ✓ | Array of selected services | Min 1 service required |
 | `services[].id_services` | number | ✓ | Service ID from services table | Must exist in database |
 | `services[].price` | number | ✓ | Service price | In IDR (Rupiah) |

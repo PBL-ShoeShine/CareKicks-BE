@@ -25,7 +25,11 @@ const ANTREAN_SELECT = `
     foto_sebelum,
     foto_sesudah,
     id_services,
-    total_harga
+    total_harga,
+    services (
+      id_services,
+      nama_layanan
+    )
   )
 `;
 
@@ -38,8 +42,10 @@ const TAB_STATUS = {
     "sedang_dijemput",
     "sudah_dijemput",
   ],
+  pickup: ["menunggu_dijemput", "sedang_dijemput", "sudah_dijemput"],
   sedang_dicuci: ["washing"],
   siap: ["selesai_cuci"],
+  delivery: ["sedang_diantar", "selesai"],
 };
 
 // Status yang boleh diupdate oleh admin toko
@@ -160,20 +166,27 @@ const notifyCustomerPaymentStatus = async (order, notification) => {
   }
 };
 
-// Ambil antrean by tab
-exports.getAllAntrean = async (authUser, tab) => {
+// Ambi antrean by tab
+exports.getAllAntrean = async (authUser, tab, metodeOrder) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
 
-  const statusFilter = TAB_STATUS[tab];
+  let statusFilter = TAB_STATUS[tab];
+  if (tab === "siap" && metodeOrder === "offline") {
+    statusFilter = ["selesai"];
+  }
 
   let query = supabase
     .from("orders")
     .select(ANTREAN_SELECT)
     .eq("id_shops", idShops)
-    .order("tgl_order", { ascending: true });
+    .order("tgl_order", { ascending: false });
 
   if (statusFilter) {
     query = query.in("status_order", statusFilter);
+  }
+
+  if (metodeOrder) {
+    query = query.eq("metode_order", metodeOrder);
   }
 
   const { data, error } = await query;
@@ -275,6 +288,7 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     updatePayload.alasan_tolak_pembayaran = null;
   }
 
+
   // Update status order
   const { data: updatedData, error } = await supabase
     .from("orders")
@@ -359,31 +373,6 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
         title: "Pembayaran dikonfirmasi",
         body: `Pembayaran order #${finalData.kode_order} sudah dikonfirmasi. Pesanan menunggu dijemput.`,
         statusOrder: "menunggu_dijemput",
-        statusPembayaran: "paid",
-      });
-    } else if (data.metode_order === "offline") {
-      // Offline: setelah dikonfirmasi → otomatis washing
-      const { data: finalData, error: finalError } = await supabase
-        .from("orders")
-        .update({ status_order: "washing", status_pembayaran: "paid" })
-        .eq("id_orders", idOrder)
-        .select(ANTREAN_SELECT)
-        .single();
-      if (finalError) throw new Error(finalError.message);
-      data = finalData;
-
-      await insertStatusHistory(
-        idOrder,
-        "washing",
-        "system",
-        null,
-        "Otomatis mulai pencucian setelah pesanan offline dikonfirmasi",
-      );
-
-      await notifyCustomerPaymentStatus(finalData, {
-        title: "Pembayaran dikonfirmasi",
-        body: `Pembayaran order #${finalData.kode_order} sudah dikonfirmasi. Pesanan mulai diproses.`,
-        statusOrder: "washing",
         statusPembayaran: "paid",
       });
     }
