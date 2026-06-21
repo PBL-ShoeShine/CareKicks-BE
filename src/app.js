@@ -13,6 +13,36 @@ app.use(cors()); // Aktifkan akses lintas perangkat (Biar HP fisik aman)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Middleware to clean up soft-deleted service names in JSON responses
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  res.json = function (body) {
+    if (body && typeof body === 'object') {
+      const cleanObject = (obj) => {
+        if (!obj) return obj;
+        if (Array.isArray(obj)) {
+          return obj.map(cleanObject);
+        }
+        if (typeof obj === 'object') {
+          const cleaned = {};
+          for (const key in obj) {
+            if (key === 'nama_layanan' && typeof obj[key] === 'string') {
+              cleaned[key] = obj[key].replace(/^deleted_\d+_/, '');
+            } else {
+              cleaned[key] = cleanObject(obj[key]);
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+      body = cleanObject(body);
+    }
+    return originalJson.call(this, body);
+  };
+  next();
+});
+
 // Request logging middleware (Biar kelihatan request apa saja yang masuk)
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -63,7 +93,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${PORT}`);
   console.log(
-    `📖 Dokumentasi Swagger aktif di: http://10.137.229.70:${PORT}/api-docs`,
+    `📖 Dokumentasi Swagger aktif di: http://172.16.160.223:${PORT}/api-docs`,
   );
   console.log("\n===== DAFTAR RUTE AKTIF =====");
   console.table(

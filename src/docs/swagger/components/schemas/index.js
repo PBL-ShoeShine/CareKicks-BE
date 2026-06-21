@@ -10,8 +10,9 @@ const manajemenLayananSchemas = require("./manajemen_layanan");
 const pemindaiSchemas = require("./pemindai");
 const editProfileSchemas = require("./edit_profile");
 const ubahPasswordSchemas = require("./ubah_password");
-const customerOrderSchemas = require("./customer_order");
-const customerPaymentSchemas = require("./customer_payment");
+const detailOrderSchemas = require("./detail_order");
+const paymentSchemas = require("./payment");
+const riwayatSchemas = require("./riwayat");
 const customerProfileSchemas = require("./customer_profile");
 const customerAddressSchemas = require("./customer_address");
 const bankSchemas = require("./bank");
@@ -29,8 +30,9 @@ module.exports = {
   ...pemindaiSchemas,
   ...editProfileSchemas,
   ...ubahPasswordSchemas,
-  ...customerOrderSchemas,
-  ...customerPaymentSchemas,
+  ...detailOrderSchemas,
+  ...paymentSchemas,
+  ...riwayatSchemas,
   ...customerProfileSchemas,
   ...customerAddressSchemas,
   ...bankSchemas,

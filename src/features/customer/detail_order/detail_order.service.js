@@ -1,8 +1,8 @@
 const supabase = require("../../../core/config/supabase");
 
 const getDetailOrder = async (orderId, customerId) => {
-  // Ambil data order
-  const { data: order, error: orderError } = await supabase
+  // Ambil data order (Ubah .single() menjadi query array biasa agar mencegah crash)
+  const { data: orders, error: orderError } = await supabase
     .from("orders")
     .select(
       `
@@ -17,11 +17,16 @@ const getDetailOrder = async (orderId, customerId) => {
     `,
     )
     .eq("id_orders", orderId)
-    .eq("id_customer", customerId)
-    .single();
+    .eq("id_customer", customerId);
 
   if (orderError) throw new Error(orderError.message);
-  if (!order) throw new Error("Pesanan tidak ditemukan");
+
+  // Jika orders kosong, lempar error yang akan ditangkap sebagai 404 oleh controller
+  if (!orders || orders.length === 0)
+    throw new Error("Pesanan tidak ditemukan");
+
+  // Karena aman dan ada datanya, ambil indeks ke-0
+  const order = orders[0];
 
   // Ambil item detail order
   const { data: items, error: itemsError } = await supabase
@@ -41,10 +46,6 @@ const getDetailOrder = async (orderId, customerId) => {
   if (itemsError) throw new Error(itemsError.message);
 
   // Ambil timeline dari order_status_history
-  // FIX: join path yang benar:
-  //   order_status_history.id_staff
-  //     → staff.id_staff_profile
-  //       → staff_profile.nama
   const { data: timeline, error: timelineError } = await supabase
     .from("order_status_history")
     .select(
@@ -74,37 +75,19 @@ const getDetailOrder = async (orderId, customerId) => {
     keterangan: item.keterangan,
     changed_by_role: item.changed_by_role,
     created_at: item.created_at,
-    // staff.id_staff_profile adalah FK ke staff_profile
     nama_staff: item.staff?.staff_profile?.nama ?? null,
   }));
 
-  // Ambil data payment terkait order ini
-  const { data: payment, error: paymentError } = await supabase
-    .from("payments")
-    .select(
-      `
-      id_payment,
-      status_pembayaran,
-      metode_pembayaran,
-      bukti_pembayaran,
-      created_at
-    `,
-    )
-    .eq("id_orders", orderId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  // payment boleh null kalau belum ada, jadi error-nya tidak di-throw
-  if (paymentError) {
-    console.error("Payment fetch error:", paymentError.message);
-  }
-
+  // Susun data untuk dikirim ke frontend
   return {
     order,
     items,
     timeline: timelineNormalized,
-    payment: payment ?? null,
+    payment: {
+      status_pembayaran: order.status_pembayaran ?? null,
+      metode_pembayaran: order.metode_bayar ?? null,
+      bukti_pembayaran: order.upload_bkt_byr ?? null,
+    },
   };
 };
 
