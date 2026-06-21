@@ -82,6 +82,24 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran") => {
  * @param {object} data - { action: 'approve' | 'reject', reason?: string }
  */
 exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
+  // Fetch current order info to prevent double-crediting and read payment details
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select(`
+      id_orders,
+      status_pembayaran,
+      total_ongkir,
+      metode_order,
+      detail_orders (
+        total_harga
+      )
+    `)
+    .eq("id_orders", id_orders)
+    .eq("id_shops", id_shops)
+    .single();
+
+  if (orderError) throw new Error(orderError.message);
+
   const statusPembayaran = action === "approve" ? "paid" : "rejected";
   const statusOrder = action === "approve" ? "menunggu_dijemput" : "menunggu_pembayaran";
 
@@ -103,6 +121,37 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
     .single();
 
   if (error) throw new Error(error.message);
+
+  // If approved and order was online and not already paid, update the shop's balance
+  if (action === "approve" && order.metode_order === "online" && order.status_pembayaran !== "paid") {
+    const serviceTotal = (order.detail_orders || []).reduce((sum, item) => sum + Number(item.total_harga || 0), 0);
+    const ongkirTotal = Number(order.total_ongkir || 0);
+    const addAmount = serviceTotal + ongkirTotal;
+
+    const { data: shopSaldo, error: saldoFetchError } = await supabase
+      .from("shops")
+      .select("saldo_toko")
+      .eq("id_shops", id_shops)
+      .single();
+
+    if (saldoFetchError) {
+      throw saldoFetchError;
+    }
+
+    const saldoSekarang = Number(shopSaldo.saldo_toko || 0);
+    const saldoBaru = saldoSekarang + addAmount;
+
+    const { error: saldoUpdateError } = await supabase
+      .from("shops")
+      .update({
+        saldo_toko: saldoBaru,
+      })
+      .eq("id_shops", id_shops);
+
+    if (saldoUpdateError) {
+      throw saldoUpdateError;
+    }
+  }
 
   // Simpan history
   await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`);

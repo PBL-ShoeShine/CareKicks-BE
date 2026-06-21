@@ -248,6 +248,23 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     );
   }
 
+  // Fetch current order info to avoid double crediting and read payment details
+  const { data: currentOrder, error: currentOrderError } = await supabase
+    .from("orders")
+    .select(`
+      status_pembayaran,
+      metode_order,
+      total_ongkir,
+      detail_orders (
+        total_harga
+      )
+    `)
+    .eq("id_orders", idOrder)
+    .eq("id_shops", idShops)
+    .single();
+
+  if (currentOrderError) throw new Error(currentOrderError.message);
+
   const updatePayload = { status_order: status };
 
   if (status === "menunggu_pembayaran") {
@@ -268,6 +285,37 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     .single();
   if (error) throw new Error(error.message);
   let data = updatedData;
+
+  // If approved/dikonfirmasi and order was online and not already paid, update the shop's balance
+  if (status === "dikonfirmasi" && currentOrder.metode_order === "online" && currentOrder.status_pembayaran !== "paid") {
+    const serviceTotal = (currentOrder.detail_orders || []).reduce((sum, item) => sum + Number(item.total_harga || 0), 0);
+    const ongkirTotal = Number(currentOrder.total_ongkir || 0);
+    const addAmount = serviceTotal + ongkirTotal;
+
+    const { data: shopSaldo, error: saldoFetchError } = await supabase
+      .from("shops")
+      .select("saldo_toko")
+      .eq("id_shops", idShops)
+      .single();
+
+    if (saldoFetchError) {
+      throw saldoFetchError;
+    }
+
+    const saldoSekarang = Number(shopSaldo.saldo_toko || 0);
+    const saldoBaru = saldoSekarang + addAmount;
+
+    const { error: saldoUpdateError } = await supabase
+      .from("shops")
+      .update({
+        saldo_toko: saldoBaru,
+      })
+      .eq("id_shops", idShops);
+
+    if (saldoUpdateError) {
+      throw saldoUpdateError;
+    }
+  }
 
   // Insert history untuk status yang di-set admin
   await insertStatusHistory(idOrder, status, "admin_toko", null, keterangan);
