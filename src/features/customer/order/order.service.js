@@ -320,3 +320,297 @@ exports.getServicesByShop = async (idShops) => {
     services: services || [],
   };
 };
+
+// ─── CREATE ONLINE ORDER FROM CART ─────────────────────────────────────────────
+exports.createOnlineOrderFromCart = async ({
+  userId,
+  selectedIds,
+  nama_pemilik,
+  no_hp,
+  alamat,
+  lat_order,
+  long_order,
+  total_ongkir,
+  metode_pengambilan,
+}) => {
+  if (!selectedIds || selectedIds.length === 0) {
+    throw new Error("Tidak ada item keranjang yang dipilih");
+  }
+
+  // Step 1: Ambil cart items
+  const { data: cartItems, error: itemError } = await supabase
+    .from("cart_item")
+    .select("*")
+    .in("id_cart_item", selectedIds);
+
+  if (itemError) throw new Error(itemError.message);
+  if (!cartItems || cartItems.length === 0) {
+    throw new Error("Item keranjang tidak ditemukan");
+  }
+
+  // Step 2: Ambil cart dan services secara terpisah (hindari issue join syntax)
+  const cartIds = [...new Set(cartItems.map((i) => i.id_cart))];
+  const serviceIds = [...new Set(cartItems.map((i) => i.id_services))];
+
+  const { data: carts, error: cartError } = await supabase
+    .from("cart")
+    .select("*")
+    .in("id_cart", cartIds);
+
+  if (cartError) throw new Error(cartError.message);
+
+  const { data: services, error: svcError } = await supabase
+    .from("services")
+    .select("id_services, nama_layanan, harga")
+    .in("id_services", serviceIds);
+
+  if (svcError) throw new Error(svcError.message);
+
+  // Build lookup maps
+  const cartMap = {};
+  for (const c of carts || []) cartMap[c.id_cart] = c;
+  const serviceMap = {};
+  for (const s of services || []) serviceMap[s.id_services] = s;
+
+  // Attach cart dan service ke setiap item
+  for (const item of cartItems) {
+    item.cart = cartMap[item.id_cart];
+    item.service = serviceMap[item.id_services];
+    if (!item.cart) throw new Error(`Cart tidak ditemukan untuk item ${item.id_cart_item}`);
+    if (!item.service) throw new Error(`Layanan tidak ditemukan untuk item ${item.id_cart_item}`);
+  }
+
+  // Step 2: Verifikasi semua item milik user yang login
+  const { data: customer, error: custError } = await supabase
+    .from("customers")
+    .select("id_customers, nama, nomor_hp")
+    .eq("id_user", userId)
+    .single();
+
+  if (custError || !customer) {
+    throw new Error("Data customer tidak ditemukan");
+  }
+
+  for (const item of cartItems) {
+    if (item.cart.id_customers !== customer.id_customers) {
+      throw new Error("Item keranjang bukan milik Anda");
+    }
+  }
+
+  // Step 3: Verifikasi semua item dari toko yang sama
+  const shopIds = [...new Set(cartItems.map((i) => i.cart.id_shops))];
+  if (shopIds.length !== 1) {
+    throw new Error("Item keranjang harus dari toko yang sama");
+  }
+  const idShops = shopIds[0];
+
+  const { data: shop, error: shopError } = await supabase
+    .from("shops")
+    .select("id_shops, nm_toko")
+    .eq("id_shops", idShops)
+    .single();
+
+  if (shopError || !shop) {
+    throw new Error("Toko tidak ditemukan");
+  }
+
+  // Step 3a: Verifikasi toko buka (jam operasional)
+  const now = new Date();
+  const dayOfWeek = now.getDay() || 7; // JS: 0=Minggu → 7
+  const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+
+  const { data: todayHours, error: hoursError } = await supabase
+    .from("shop_operating_hours")
+    .select("is_open, open_time, close_time")
+    .eq("id_shops", idShops)
+    .eq("day_of_week", dayOfWeek)
+    .single();
+
+  if (hoursError || !todayHours) {
+    throw new Error("Jam operasional toko tidak ditemukan");
+  }
+
+  if (!todayHours.is_open) {
+    throw new Error("Toko sedang tutup hari ini");
+  }
+
+  if (currentTime < todayHours.open_time || currentTime > todayHours.close_time) {
+    throw new Error("Toko sedang tutup, pesan di jam operasional toko");
+  }
+
+  // Step 3b: Verifikasi semua layanan milik toko ini dan aktif
+  const uniqueServiceIdList = [...new Set(cartItems.map((i) => i.id_services))];
+  const { data: validServices, error: svcValidError } = await supabase
+    .from("services")
+    .select("id_services, nama_layanan, harga")
+    .eq("id_shops", idShops)
+    .eq("is_active", true)
+    .in("id_services", uniqueServiceIdList);
+
+  if (svcValidError) throw new Error(svcValidError.message);
+
+  if (!validServices || validServices.length !== uniqueServiceIdList.length) {
+    throw new Error("Satu atau lebih layanan tidak valid atau tidak aktif di toko ini");
+  }
+
+  // Perbarui nama_layanan dan harga dari DB (bukan dari client)
+  const svcNameMap = {};
+  const svcPriceMap = {};
+  for (const svc of validServices) {
+    svcNameMap[svc.id_services] = svc.nama_layanan;
+    svcPriceMap[svc.id_services] = svc.harga;
+  }
+  for (const item of cartItems) {
+    item.service.nama_layanan = svcNameMap[item.id_services];
+  }
+
+  // Step 4: Generate kode_order dan QR
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const yymmdd = `${yy}${mm}${dd}`;
+
+  const cleanName = shop.nm_toko.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const prefix = cleanName.substring(0, 3) || "ORD";
+
+  const likePattern = `${prefix}-${yymmdd}-%`;
+  const { count } = await supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true })
+    .ilike("kode_order", likePattern);
+
+  const urutan = (count || 0) + 1;
+  const urutanStr = String(urutan).padStart(3, "0");
+  const kodeOrder = `${prefix}-${yymmdd}-${urutanStr}`;
+  const qr = generateQRCode(kodeOrder);
+
+  // Step 5: Hitung total harga dari DB (bukan dari client)
+  let totalHarga = 0;
+  for (const item of cartItems) {
+    totalHarga += svcPriceMap[item.id_services] || 0;
+  }
+
+  // Step 6: Insert orders
+  const { data: orderData, error: orderError } = await supabase
+    .from("orders")
+    .insert({
+      kode_order: kodeOrder,
+      id_customer: customer.id_customers,
+      tgl_order: new Date(),
+      status_order: "pending",
+      metode_order: "online",
+      metode_bayar: "transfer",
+      metode_pengambilan: metode_pengambilan || "delivery",
+      alamat_pengantaran: alamat,
+      lat_order,
+      long_order,
+      qr_image: qr.filename,
+      link_qr: qr.url,
+      total_ongkir: total_ongkir || 0,
+      status_pembayaran: "unpaid",
+      id_shops: idShops,
+      upload_bkt_byr: null,
+    })
+    .select("id_orders, kode_order, tgl_order, status_order, status_pembayaran")
+    .single();
+
+  if (orderError) throw new Error(orderError.message);
+
+  const idOrders = orderData.id_orders;
+
+  // Step 7: Insert detail_orders — satu record per cart item
+  const detailInserts = cartItems.map((item) => {
+    let fotoStr = "";
+    try {
+      const parsed = JSON.parse(item.foto_sebelum || "[]");
+      fotoStr = Array.isArray(parsed) ? parsed.join(",") : item.foto_sebelum || "";
+    } catch (_) {
+      fotoStr = item.foto_sebelum || "";
+    }
+
+    return {
+      id_orders: idOrders,
+      id_services: item.id_services,
+      foto_sebelum: fotoStr,
+      merk: item.merk || "",
+      jenis_sepatu: item.jenis_sepatu || "",
+      warna: item.warna || "",
+      catatan: item.catatan || null,
+      total_harga: svcPriceMap[item.id_services] || 0,
+    };
+  });
+
+  const { error: detailError } = await supabase
+    .from("detail_orders")
+    .insert(detailInserts);
+
+  if (detailError) throw new Error(detailError.message);
+
+  // Step 8: Status history
+  await supabase.from("order_status_history").insert({
+    id_orders: idOrders,
+    id_staff: null,
+    status: "pending",
+    keterangan: "Pesanan dari keranjang dibuat oleh customer",
+    changed_by_role: "customer",
+  });
+
+  // Step 9: Hapus cart items yang sudah di-order
+  const cartItemIds = cartItems.map((i) => i.id_cart_item);
+  const { error: deleteError } = await supabase
+    .from("cart_item")
+    .delete()
+    .in("id_cart_item", cartItemIds);
+
+  if (deleteError) {
+    console.error("Gagal hapus cart items:", deleteError.message);
+  }
+
+  // Hapus cart jika sudah tidak punya item
+  const uniqueCartIds = [...new Set(cartItems.map((i) => i.cart.id_cart))];
+  for (const idCart of uniqueCartIds) {
+    const { count: remaining } = await supabase
+      .from("cart_item")
+      .select("*", { count: "exact", head: true })
+      .eq("id_cart", idCart);
+
+    if (remaining === 0) {
+      await supabase.from("cart").delete().eq("id_cart", idCart);
+    }
+  }
+
+  // Step 10: Notifikasi admin
+  const namaDisplay = customer.nama || nama_pemilik;
+  await notifyShopAdmins(idShops, idOrders, kodeOrder, namaDisplay);
+
+  // Step 11: Notifikasi customer
+  try {
+    await supabase.from("notification").insert({
+      id_user: userId,
+      id_orders: idOrders,
+      title: "Pesanan Berhasil Dibuat",
+      message: `Pesanan #${kodeOrder} dari keranjang berhasil dibuat. Silakan lakukan pembayaran.`,
+      type_notification: "order",
+      is_read: false,
+      created_at: new Date(),
+    });
+  } catch (notifErr) {
+    console.error("Gagal notifikasi customer:", notifErr.message);
+  }
+
+  return {
+    id_orders: idOrders,
+    kode_order: kodeOrder,
+    tgl_order: orderData.tgl_order,
+    status_order: orderData.status_order,
+    status_pembayaran: orderData.status_pembayaran,
+    total_harga: totalHarga + (total_ongkir || 0),
+    qr_code: qr.url,
+    nm_toko: shop.nm_toko,
+    services: cartItems.map((item) => ({
+      id_services: item.id_services,
+      nama_layanan: item.service.nama_layanan,
+      harga: item.harga_layanan,
+    })),
+  };
+};
