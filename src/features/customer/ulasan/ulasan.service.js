@@ -10,7 +10,8 @@ exports.getAllUlasan = async (filters = {}) => {
   try {
     let query = supabase
       .from("ulasan")
-      .select(`
+      .select(
+        `
         id_ulasan,
         id_orders,
         id_shops,
@@ -27,7 +28,8 @@ exports.getAllUlasan = async (filters = {}) => {
             nama
           )
         )
-      `)
+      `,
+      )
       .order("created_at", { ascending: false });
 
     if (id_shops) {
@@ -47,7 +49,7 @@ exports.getAllUlasan = async (filters = {}) => {
     if (error) throw error;
 
     // Format data to match UI needs
-    return data.map(item => ({
+    return data.map((item) => ({
       id_ulasan: item.id_ulasan,
       id_orders: item.id_orders,
       id_shops: item.id_shops,
@@ -57,9 +59,11 @@ exports.getAllUlasan = async (filters = {}) => {
       foto_ulasan: item.foto_ulasan || [],
       created_at: item.created_at,
       user: {
-        nama: item.customers?.users?.nama || item.customers?.nama || "User",
-        foto: item.customers?.users?.path_gambar || item.customers?.foto || null
-      }
+        // DIBALIK: Prioritaskan nama customer (sebagai pembeli), bukan nama users (yang mungkin sudah jadi nama toko)
+        nama: item.customers?.nama || item.customers?.users?.nama || "User",
+        foto:
+          item.customers?.foto || item.customers?.users?.path_gambar || null,
+      },
     }));
   } catch (error) {
     console.error("Error in getAllUlasan:", error);
@@ -104,7 +108,15 @@ exports.uploadUlasanImages = async (files) => {
  * @param {Object} reviewData - Review data (id_orders, id_shops, id_services, id_customers, rating, ulasan, foto_ulasan)
  */
 exports.createUlasan = async (reviewData) => {
-  const { id_orders, id_shops, id_services, id_customers, rating, ulasan, foto_ulasan } = reviewData;
+  const {
+    id_orders,
+    id_shops,
+    id_services,
+    id_customers,
+    rating,
+    ulasan,
+    foto_ulasan,
+  } = reviewData;
 
   try {
     let final_id_shops = id_shops;
@@ -123,7 +135,9 @@ exports.createUlasan = async (reviewData) => {
         .single();
 
       if (orderError || !order) {
-        throw new Error("Pesanan tidak ditemukan atau Anda tidak memiliki akses");
+        throw new Error(
+          "Pesanan tidak ditemukan atau Anda tidak memiliki akses",
+        );
       }
 
       // Pastikan layanan benar-benar ada di pesanan tersebut
@@ -135,9 +149,11 @@ exports.createUlasan = async (reviewData) => {
         .maybeSingle();
 
       if (!detailOrder) {
-         throw new Error("Layanan tersebut tidak ditemukan di dalam pesanan ini");
+        throw new Error(
+          "Layanan tersebut tidak ditemukan di dalam pesanan ini",
+        );
       }
-      
+
       // Use id_shops from order if not explicitly provided
       final_id_shops = order.id_shops;
 
@@ -150,32 +166,35 @@ exports.createUlasan = async (reviewData) => {
         .maybeSingle();
 
       if (existing) {
-        throw new Error("Anda sudah memberikan ulasan untuk layanan ini pada pesanan tersebut");
+        throw new Error(
+          "Anda sudah memberikan ulasan untuk layanan ini pada pesanan tersebut",
+        );
       }
     } else {
       // If no id_orders, id_shops must be provided
       if (!final_id_shops) {
         throw new Error("id_shops wajib diisi untuk ulasan toko");
       }
-      // Shop reviews shouldn't have specific services attached usually, 
+      // Shop reviews shouldn't have specific services attached usually,
       // but if the schema allows it, we ensure the service belongs to the shop
       if (id_services) {
-         const { data: serviceCheck } = await supabase
+        const { data: serviceCheck } = await supabase
           .from("services")
           .select("id_services")
           .eq("id_services", id_services)
           .eq("id_shops", final_id_shops)
           .maybeSingle();
-          if(!serviceCheck) throw new Error("Layanan tidak ditemukan di toko ini");
+        if (!serviceCheck)
+          throw new Error("Layanan tidak ditemukan di toko ini");
       }
-      
+
       // Optional: Check if shop exists
       const { data: shop, error: shopError } = await supabase
         .from("shops")
         .select("id_shops")
         .eq("id_shops", final_id_shops)
         .single();
-        
+
       if (shopError || !shop) {
         throw new Error("Toko tidak ditemukan");
       }
@@ -191,7 +210,7 @@ exports.createUlasan = async (reviewData) => {
         id_customers,
         rating: parseInt(rating),
         ulasan,
-        foto_ulasan: foto_ulasan || []
+        foto_ulasan: foto_ulasan || [],
       })
       .select()
       .single();
@@ -204,4 +223,3 @@ exports.createUlasan = async (reviewData) => {
     throw error;
   }
 };
-
