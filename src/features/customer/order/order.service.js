@@ -29,9 +29,7 @@ async function notifyShopAdmins(idShops, idOrders, kodeOrder, namaCustomer) {
       created_at: new Date(),
     }));
 
-    const { error } = await supabase
-      .from("notification")
-      .insert(notifications);
+    const { error } = await supabase.from("notification").insert(notifications);
 
     if (error) {
       console.error("Gagal insert notifikasi admin:", error.message);
@@ -132,7 +130,10 @@ exports.createOnlineOrder = async ({
   let fotoUrls = [];
   if (fotoFiles && fotoFiles.length > 0) {
     for (const file of fotoFiles) {
-      const fileExt = file.originalname.split(".").pop() || file.mimetype.split("/")[1] || "jpg";
+      const fileExt =
+        file.originalname.split(".").pop() ||
+        file.mimetype.split("/")[1] ||
+        "jpg";
       const fileName = `orders/${userId}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
@@ -175,7 +176,7 @@ exports.createOnlineOrder = async ({
   // Ambil 3 huruf pertama nama toko sebagai Prefix
   const cleanName = shop.nm_toko.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   const prefix = cleanName.substring(0, 3) || "ORD";
-  
+
   // Cari jumlah pesanan hari ini untuk menentukan urutan harian
   const likePattern = `${prefix}-${yymmdd}-%`;
   const { count } = await supabase
@@ -185,7 +186,7 @@ exports.createOnlineOrder = async ({
 
   const urutan = (count || 0) + 1;
   const urutanStr = String(urutan).padStart(3, "0");
-  
+
   const kodeOrder = `${prefix}-${yymmdd}-${urutanStr}`;
   const qr = generateQRCode(kodeOrder);
 
@@ -293,7 +294,9 @@ exports.createOnlineOrder = async ({
 exports.getServicesByShop = async (idShops) => {
   const { data: shop, error: shopError } = await supabase
     .from("shops")
-    .select("id_shops, nm_toko, lat_toko, long_toko")
+    .select(
+      "id_shops, nm_toko, lat_toko, long_toko, jarak_gratis_km, tarif_per_km, jarak_maksimal_km, tarif_per_km_luar_radius",
+    )
     .eq("id_shops", idShops)
     .single();
 
@@ -317,6 +320,10 @@ exports.getServicesByShop = async (idShops) => {
     id_shops: shop.id_shops,
     lat_toko: shop.lat_toko,
     long_toko: shop.long_toko,
+    jarak_gratis_km: shop.jarak_gratis_km,
+    tarif_per_km: shop.tarif_per_km,
+    jarak_maksimal_km: shop.jarak_maksimal_km,
+    tarif_per_km_luar_radius: shop.tarif_per_km_luar_radius,
     services: services || [],
   };
 };
