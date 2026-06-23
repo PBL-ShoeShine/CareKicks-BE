@@ -77,3 +77,92 @@ exports.getShopProfile = async (idShops) => {
       .order("day_of_week", { ascending: true })).data || [],
   };
 };
+
+const uploadImageToSupabase = async (file, prefix = "shop") => {
+  if (!file) return null;
+
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const fileExtension = file.originalname.split(".").pop();
+  const fileName = `${prefix}_${timestamp}_${randomStr}.${fileExtension}`;
+  const filePath = `shops/${fileName}`;
+
+  const { error } = await supabase.storage
+    .from("services")
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+    });
+
+  if (error) throw error;
+
+  const { data: publicData } = supabase.storage
+    .from("services")
+    .getPublicUrl(filePath);
+
+  return publicData.publicUrl;
+};
+
+exports.registerShop = async (id_user, payload, { foto_toko_file, foto_ktp_file }) => {
+  const {
+    nm_toko,
+    desk_toko,
+    alamat_toko,
+    spesialisasi,
+    jam_buka = "08:00:00",
+    jam_tutup = "20:00:00",
+    upload_qris = "https://images.unsplash.com/photo-1595079676339-1534801ad6cf"
+  } = payload;
+
+  if (!nm_toko || !alamat_toko || !spesialisasi) {
+    throw new Error("Nama toko, alamat, dan spesialisasi wajib diisi");
+  }
+
+  // Upload files to Supabase
+  const foto_toko = await uploadImageToSupabase(foto_toko_file, "foto_toko");
+  const foto_ktp = await uploadImageToSupabase(foto_ktp_file, "foto_ktp");
+
+  // 1. Insert into shops_admin
+  const { data: adminData, error: adminErr } = await supabase
+    .from("shops_admin")
+    .insert({ id_user })
+    .select()
+    .single();
+
+  if (adminErr) throw adminErr;
+
+  // 2. Insert into shops
+  const { data: shopData, error: shopErr } = await supabase
+    .from("shops")
+    .insert({
+      nm_toko,
+      desk_toko,
+      alamat_toko,
+      spesialisasi,
+      jam_buka,
+      jam_tutup,
+      foto_toko,
+      foto_ktp,
+      upload_qris,
+      status_verifikasi: "pending",
+      id_shops_admin: adminData.id_shops_admin,
+      saldo_toko: 0
+    })
+    .select()
+    .single();
+
+  if (shopErr) {
+    // Rollback shops_admin insert if shop insert fails
+    await supabase.from("shops_admin").delete().eq("id_shops_admin", adminData.id_shops_admin);
+    throw shopErr;
+  }
+
+  // NOTE: User role stays as 'customer' until SuperAdmin approves the shop.
+  // The role upgrade to 'shops_admin' happens in verifyStore when status becomes 'approved'.
+
+  return {
+    shop: shopData,
+    id_shops_admin: adminData.id_shops_admin
+  };
+};
+

@@ -95,6 +95,10 @@ exports.getShopProfile = async (authUser) => {
 		foto_toko: shop.foto_toko,
 		spesialisasi: shop.spesialisasi,
 		tgl_berdiri: shop.tgl_berdiri,
+		jam_buka: shop.jam_buka,
+		jam_tutup: shop.jam_tutup,
+		status_verifikasi: shop.status_verifikasi,
+		alasan_penangguhan: shop.alasan_penangguhan,
 		email_toko: userData.email,
 		wa_toko: userData.no_hp,
 	};
@@ -193,3 +197,61 @@ exports.updateOperatingHours = async (authUser, hours) => {
 			day_name: DAY_NAMES[row.day_of_week] || null,
 		}));
 };
+
+exports.submitAppeal = async (authUser, { alasan_banding, file }) => {
+	const shop = await getShopByUser(authUser);
+
+	if (!alasan_banding || alasan_banding.trim() === "") {
+		throw new Error("Alasan banding tidak boleh kosong");
+	}
+
+	if (shop.status_verifikasi !== "suspended") {
+		throw new Error("Toko tidak dalam status ditangguhkan");
+	}
+
+	// 1. Upload proof file if exists
+	let fotoUrl = null;
+	if (file) {
+		const timestamp = Date.now();
+		const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+		const fileExtension = file.originalname.split(".").pop();
+		const fileName = `appeal_${timestamp}_${randomStr}.${fileExtension}`;
+		const filePath = `shops/${fileName}`;
+
+		const { error: uploadError } = await supabase.storage
+			.from("services")
+			.upload(filePath, file.buffer, {
+				contentType: file.mimetype,
+				upsert: false,
+			});
+
+		if (uploadError) throw uploadError;
+
+		const { data: publicData } = supabase.storage
+			.from("services")
+			.getPublicUrl(filePath);
+
+		fotoUrl = publicData.publicUrl;
+	}
+
+	// Prepare updated alasan_penangguhan: combine original suspension reason with appeal message
+	const originalReason = shop.alasan_penangguhan || "Ditangguhkan oleh SuperAdmin";
+	let formattedReason = `Alasan Penangguhan: ${originalReason} | Banding: ${alasan_banding.trim()}`;
+	if (fotoUrl) {
+		formattedReason += ` | Bukti: ${fotoUrl}`;
+	}
+
+	const { data, error } = await supabase
+		.from("shops")
+		.update({
+			status_verifikasi: "appealed",
+			alasan_penangguhan: formattedReason
+		})
+		.eq("id_shops", shop.id_shops)
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+};
+
