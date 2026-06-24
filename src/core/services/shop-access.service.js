@@ -37,12 +37,15 @@ exports.getShopForUser = async (authUser) => {
             long_toko,
             foto_toko,
             spesialisasi,
-            tgl_berdiri
+            tgl_berdiri,
+            status_verifikasi,
+            alasan_penangguhan
           )
         )
       `,
       )
       .eq("id_user", userId)
+      .limit(1)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
@@ -60,6 +63,7 @@ exports.getShopForUser = async (authUser) => {
     };
   }
 
+  // For shops_admin AND customer (who may have a pending shop registration)
   const { data, error } = await supabase
     .from("shops_admin")
     .select(
@@ -76,18 +80,23 @@ exports.getShopForUser = async (authUser) => {
         long_toko,
         foto_toko,
         spesialisasi,
-        tgl_berdiri
+        tgl_berdiri,
+        status_verifikasi,
+        alasan_penangguhan,
+        jam_buka,
+        jam_tutup
       )
     `,
     )
     .eq("id_user", userId)
+    .limit(1)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
 
   const shop = normalizeShop(data?.shops);
   if (!shop?.id_shops) {
-    throw new Error("Toko tidak ditemukan untuk admin ini");
+    throw new Error("Toko tidak ditemukan untuk user ini");
   }
 
   return {

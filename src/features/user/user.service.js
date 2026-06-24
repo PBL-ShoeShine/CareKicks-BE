@@ -64,8 +64,8 @@ exports.login = async ({ email, password }) => {
   const { data, error } = await supabase
     .from("users")
     .select("*")
-    .eq("email", email)
-    .single();
+    .or(`email.eq.${email},username.eq.${email}`)
+    .maybeSingle();
 
   if (error || !data) {
     throw new Error("User tidak ditemukan");
@@ -149,13 +149,13 @@ const buildLoginUserPayload = async (userData) => {
   }
 
   if (userData.jenis_role === "shops_admin") {
-    const { data: shopAdmin, error: shopAdminError } = await supabase
+    const { data: shopAdminList, error: shopAdminError } = await supabase
       .from("shops_admin")
-      .select("id_shops_admin, shops(id_shops, nm_toko, desk_toko, alamat_toko, foto_toko, spesialisasi)")
-      .eq("id_user", userData.id_user)
-      .maybeSingle();
+      .select("id_shops_admin, shops(id_shops, nm_toko, desk_toko, alamat_toko, foto_toko, spesialisasi, status_verifikasi, alasan_penangguhan)")
+      .eq("id_user", userData.id_user);
 
-    if (!shopAdminError && shopAdmin?.shops) {
+    if (!shopAdminError && shopAdminList && shopAdminList.length > 0) {
+      const shopAdmin = shopAdminList[0];
       const shop = Array.isArray(shopAdmin.shops)
         ? shopAdmin.shops[0]
         : shopAdmin.shops;
@@ -165,6 +165,30 @@ const buildLoginUserPayload = async (userData) => {
         id_shops: shop?.id_shops,
         shop,
       };
+    }
+  }
+
+  // For customers, check if they have a pending shop registration
+  if (userData.jenis_role === "customer") {
+    const { data: shopAdminList, error: shopAdminError } = await supabase
+      .from("shops_admin")
+      .select("id_shops_admin, shops(id_shops, nm_toko, desk_toko, alamat_toko, foto_toko, spesialisasi, status_verifikasi, alasan_penangguhan)")
+      .eq("id_user", userData.id_user);
+
+    if (!shopAdminError && shopAdminList && shopAdminList.length > 0) {
+      const shopAdmin = shopAdminList[0];
+      const shop = Array.isArray(shopAdmin.shops)
+        ? shopAdmin.shops[0]
+        : shopAdmin.shops;
+      if (shop) {
+        return {
+          ...safeUser,
+          id_shops_admin: shopAdmin.id_shops_admin,
+          id_shops: shop?.id_shops,
+          shop,
+          has_pending_shop: true,
+        };
+      }
     }
   }
 
