@@ -1,6 +1,14 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 const pushNotification = require("../../../core/services/push-notification.service");
+const crypto = require("crypto");
+
+// Generate QR code
+function _generateQRCode(kodeOrder) {
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kodeOrder)}`;
+  const filename = `qr_${kodeOrder}_${Date.now()}.png`;
+  return { url, filename };
+}
 
 const ANTREAN_SELECT = `
   id_orders,
@@ -347,6 +355,9 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
 
   if (status === "dikonfirmasi") {
     if (data.metode_order === "online") {
+      // Generate QR code saat online order masuk ke Pesanan Baru
+      const qr = _generateQRCode(data.kode_order);
+
       // Online: setelah dikonfirmasi → otomatis menunggu_dijemput
       const { data: finalData, error: finalError } = await supabase
         .from("orders")
@@ -354,6 +365,8 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
           status_order: "menunggu_dijemput",
           status_pembayaran: "paid",
           alasan_tolak_pembayaran: null,
+          qr_image: qr.filename,
+          link_qr: qr.url,
         })
         .eq("id_orders", idOrder)
         .select(ANTREAN_SELECT)

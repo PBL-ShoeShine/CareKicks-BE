@@ -1,6 +1,14 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 const pushNotification = require("../../../core/services/push-notification.service");
+const crypto = require("crypto");
+
+// Generate QR code URL
+function generateQRCode(kodeOrder) {
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kodeOrder)}`;
+  const filename = `qr_${kodeOrder}_${Date.now()}.png`;
+  return { url, filename };
+}
 
 /**
  * Service untuk menangani konfirmasi pesanan (Alur 5 Tahap)
@@ -16,6 +24,8 @@ const ORDER_SELECT = `
   metode_bayar,
   upload_bkt_byr,
   total_ongkir,
+  qr_image,
+  link_qr,
   alamat_pengantaran,
   catatan_pengiriman,
   id_customer,
@@ -153,6 +163,22 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
 
     if (saldoUpdateError) {
       throw saldoUpdateError;
+    }
+  }
+
+  // Generate QR code saat payment dikonfirmasi (online order masuk ke Pesanan Baru)
+  if (action === "approve" && order.metode_order === "online") {
+    const qr = generateQRCode(data.kode_order);
+    const { error: qrError } = await supabase
+      .from("orders")
+      .update({
+        qr_image: qr.filename,
+        link_qr: qr.url,
+      })
+      .eq("id_orders", id_orders);
+
+    if (qrError) {
+      console.error("Gagal menyimpan QR code:", qrError.message);
     }
   }
 
