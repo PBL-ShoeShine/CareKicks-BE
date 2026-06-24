@@ -52,9 +52,11 @@ exports.getDetailByQR = async (qrText) => {
       tgl_order,
       status_order,
       metode_order,
+      metode_bayar,
       metode_pengambilan,
       alamat_pengantaran,
       link_qr,
+      id_staff,
       customers (nama, alamat),
       detail_orders (
         merk,
@@ -140,10 +142,16 @@ exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null) => {
     }
   }
 
-  // Update cache status di tabel orders
+  // --- PERBAIKAN: MENYIMPAN ID STAFF KE TABEL ORDERS ---
+  const updatePayload = { status_order: normalizedStatus };
+  if (idStaff) {
+    updatePayload.id_staff = idStaff;
+  }
+
+  // Update cache status dan id_staff di tabel orders
   const { error: updateError } = await supabase
     .from("orders")
-    .update({ status_order: normalizedStatus })
+    .update(updatePayload)
     .eq("kode_order", cleanKode);
 
   if (updateError) {
@@ -171,4 +179,13 @@ exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null) => {
   );
 
   return { id_orders: orderData.id_orders, status_order: normalizedStatus };
+};
+
+const generateQRCode = (kode_order) => {
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kode_order)}`;
+  const filename = `qr_${kode_order}_${Date.now()}.png`;
+  return {
+    url: qrUrl,
+    filename: filename,
+  };
 };

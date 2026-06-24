@@ -129,7 +129,7 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
     .update(updateData)
     .eq("id_orders", id_orders)
     .eq("id_shops", id_shops)
-    .select("*, customers(id_user)")
+    .select(ORDER_SELECT) // <--- PERBAIKAN DI SINI: MENGGUNAKAN ORDER_SELECT
     .single();
 
   if (error) throw new Error(error.message);
@@ -169,13 +169,14 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
   await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`, id_staff);
 
   // Kirim Notifikasi ke Customer
-  if (data?.customers?.id_user) {
+  const customerUserId = Array.isArray(data?.customers) ? data.customers[0]?.id_user : data?.customers?.id_user;
+  if (customerUserId) {
     const title = action === 'approve' ? 'Pembayaran Berhasil' : 'Pembayaran Ditolak';
     const body = action === 'approve' 
       ? `Pembayaran untuk pesanan ${data.kode_order} telah kami terima. Pesanan Anda kini masuk ke antrean utama.`
       : `Pembayaran untuk pesanan ${data.kode_order} ditolak. Alasan: ${reason || '-'}`;
     
-    await pushNotification.sendToUser(data.customers.id_user, { title, body }, { orderId: id_orders });
+    await pushNotification.sendToUser(customerUserId, { title, body }, { orderId: id_orders });
   }
 
   return data;
@@ -207,7 +208,7 @@ exports.confirmOrder = async (id_orders, id_shops, { action, reason, id_staff })
     .update(updateData)
     .eq("id_orders", id_orders)
     .eq("id_shops", id_shops)
-    .select("*, customers(id_user)")
+    .select(ORDER_SELECT) // <--- PERBAIKAN DI SINI: MENGGUNAKAN ORDER_SELECT
     .single();
 
   if (error) throw new Error(error.message);
@@ -216,13 +217,14 @@ exports.confirmOrder = async (id_orders, id_shops, { action, reason, id_staff })
   await this.insertStatusHistory(id_orders, statusOrder, `Pesanan ${action === 'approve' ? 'disetujui (menunggu pembayaran)' : 'ditolak'}. ${reason || ''}`, id_staff);
 
   // Kirim Notifikasi ke Customer
-  if (data?.customers?.id_user) {
+  const customerUserId = Array.isArray(data?.customers) ? data.customers[0]?.id_user : data?.customers?.id_user;
+  if (customerUserId) {
     const title = action === 'approve' ? 'Pesanan Disetujui' : 'Pesanan Dibatalkan';
     const body = action === 'approve'
       ? `Pesanan ${data.kode_order} telah disetujui. Silakan unggah bukti pembayaran agar dapat kami proses.`
       : `Pesanan ${data.kode_order} telah dibatalkan oleh toko. Alasan: ${reason || '-'}`;
 
-    await pushNotification.sendToUser(data.customers.id_user, { title, body }, { orderId: id_orders });
+    await pushNotification.sendToUser(customerUserId, { title, body }, { orderId: id_orders });
   }
 
   return data;
