@@ -31,7 +31,7 @@ exports.createUlasan = async (req, res) => {
   try {
     const id_user = req.user.id_user || req.user.id;
     let { id_orders, id_shops, id_services, rating, ulasan } = req.body;
-    const files = req.files;
+    const files = req.files; // Karena pakai upload.array(), files ini adalah sebuah Array
 
     // Bersihkan data jika dikirim sebagai string kosong, "null", "undefined", atau "0"
     if (id_orders === "" || id_orders === "null" || id_orders === "undefined" || id_orders == 0) id_orders = null;
@@ -59,11 +59,9 @@ exports.createUlasan = async (req, res) => {
       .eq("id_user", id_user)
       .maybeSingle();
 
-    // Jika data customer belum ada di tabel 'customers', tapi dia login sebagai customer, buatkan otomatis
     if (!customer && req.user.role === "customer") {
       console.log(`Customer record not found for user ${id_user}, creating one...`);
       
-      // Ambil data dari tabel users untuk melengkapi data customer
       const { data: userData } = await supabase
         .from("users")
         .select("nama, no_hp")
@@ -101,6 +99,7 @@ exports.createUlasan = async (req, res) => {
     let foto_ulasan = [];
     if (files && files.length > 0) {
       try {
+        // Langsung lempar array files ke service
         foto_ulasan = await ulasanService.uploadUlasanImages(files);
       } catch (uploadError) {
         return res.status(500).json({
@@ -119,7 +118,7 @@ exports.createUlasan = async (req, res) => {
       id_customers: customer.id_customers,
       rating,
       ulasan,
-      foto_ulasan,
+      foto_ulasan, // Berisi array URL ["https://...", "https://..."]
     });
 
     return res.status(201).json({
@@ -130,7 +129,6 @@ exports.createUlasan = async (req, res) => {
   } catch (error) {
     console.error("Error in createUlasan controller:", error);
     
-    // Handle specific error messages
     const isBadRequest = error.message.includes("sudah memberikan") || 
                          error.message.includes("tidak ditemukan") ||
                          error.message.includes("wajib diisi");

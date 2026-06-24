@@ -28,7 +28,7 @@ exports.getAllUlasan = async (filters = {}) => {
             nama
           )
         )
-      `,
+      `
       )
       .order("created_at", { ascending: false });
 
@@ -48,23 +48,44 @@ exports.getAllUlasan = async (filters = {}) => {
 
     if (error) throw error;
 
-    // Format data to match UI needs
-    return data.map((item) => ({
-      id_ulasan: item.id_ulasan,
-      id_orders: item.id_orders,
-      id_shops: item.id_shops,
-      id_services: item.id_services,
-      rating: item.rating,
-      ulasan: item.ulasan,
-      foto_ulasan: item.foto_ulasan || [],
-      created_at: item.created_at,
-      user: {
-        // DIBALIK: Prioritaskan nama customer (sebagai pembeli), bukan nama users (yang mungkin sudah jadi nama toko)
-        nama: item.customers?.nama || item.customers?.users?.nama || "User",
-        foto:
-          item.customers?.foto || item.customers?.users?.path_gambar || null,
-      },
-    }));
+    // Format data to match UI needs DENGAN PROTEKSI ARRAY
+    return data.map((item) => {
+      let parsedPhotos = [];
+      
+      // Mengamankan parsing data foto
+      if (item.foto_ulasan) {
+        if (Array.isArray(item.foto_ulasan)) {
+          parsedPhotos = item.foto_ulasan;
+        } else if (typeof item.foto_ulasan === 'string') {
+          try {
+            parsedPhotos = JSON.parse(item.foto_ulasan);
+          } catch (e) {
+            // Fallback jika format array native postgres: "{url1,url2}"
+            if (item.foto_ulasan.startsWith('{') && item.foto_ulasan.endsWith('}')) {
+              const cleaned = item.foto_ulasan.slice(1, -1);
+              parsedPhotos = cleaned ? cleaned.split(',').map(s => s.replace(/"/g, '').trim()) : [];
+            } else {
+              parsedPhotos = [item.foto_ulasan];
+            }
+          }
+        }
+      }
+
+      return {
+        id_ulasan: item.id_ulasan,
+        id_orders: item.id_orders,
+        id_shops: item.id_shops,
+        id_services: item.id_services,
+        rating: item.rating,
+        ulasan: item.ulasan,
+        foto_ulasan: parsedPhotos,
+        created_at: item.created_at,
+        user: {
+          nama: item.customers?.nama || item.customers?.users?.nama || "User",
+          foto: item.customers?.foto || item.customers?.users?.path_gambar || null,
+        },
+      };
+    });
   } catch (error) {
     console.error("Error in getAllUlasan:", error);
     throw error;
@@ -105,7 +126,6 @@ exports.uploadUlasanImages = async (files) => {
 
 /**
  * Create a new review
- * @param {Object} reviewData - Review data (id_orders, id_shops, id_services, id_customers, rating, ulasan, foto_ulasan)
  */
 exports.createUlasan = async (reviewData) => {
   const {
@@ -135,12 +155,9 @@ exports.createUlasan = async (reviewData) => {
         .single();
 
       if (orderError || !order) {
-        throw new Error(
-          "Pesanan tidak ditemukan atau Anda tidak memiliki akses",
-        );
+        throw new Error("Pesanan tidak ditemukan atau Anda tidak memiliki akses");
       }
 
-      // Pastikan layanan benar-benar ada di pesanan tersebut
       const { data: detailOrder, error: detailError } = await supabase
         .from("detail_orders")
         .select("id_detail_orders")
@@ -149,15 +166,11 @@ exports.createUlasan = async (reviewData) => {
         .maybeSingle();
 
       if (!detailOrder) {
-        throw new Error(
-          "Layanan tersebut tidak ditemukan di dalam pesanan ini",
-        );
+        throw new Error("Layanan tersebut tidak ditemukan di dalam pesanan ini");
       }
 
-      // Use id_shops from order if not explicitly provided
       final_id_shops = order.id_shops;
 
-      // 2. Check if already reviewed for this order AND this service
       const { data: existing, error: existingError } = await supabase
         .from("ulasan")
         .select("id_ulasan")
@@ -166,17 +179,13 @@ exports.createUlasan = async (reviewData) => {
         .maybeSingle();
 
       if (existing) {
-        throw new Error(
-          "Anda sudah memberikan ulasan untuk layanan ini pada pesanan tersebut",
-        );
+        throw new Error("Anda sudah memberikan ulasan untuk layanan ini pada pesanan tersebut");
       }
     } else {
-      // If no id_orders, id_shops must be provided
       if (!final_id_shops) {
         throw new Error("id_shops wajib diisi untuk ulasan toko");
       }
-      // Shop reviews shouldn't have specific services attached usually,
-      // but if the schema allows it, we ensure the service belongs to the shop
+      
       if (id_services) {
         const { data: serviceCheck } = await supabase
           .from("services")
@@ -188,7 +197,6 @@ exports.createUlasan = async (reviewData) => {
           throw new Error("Layanan tidak ditemukan di toko ini");
       }
 
-      // Optional: Check if shop exists
       const { data: shop, error: shopError } = await supabase
         .from("shops")
         .select("id_shops")

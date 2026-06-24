@@ -13,6 +13,10 @@ const ANTREAN_SELECT = `
   metode_order,
   qr_image,
   link_qr,
+  id_staff,
+  staff:users!id_staff(
+    nama
+  ),
   customers (
     id_user,
     nama
@@ -33,7 +37,6 @@ const ANTREAN_SELECT = `
   )
 `;
 
-// Mapping tab antrean ke status enum
 const TAB_STATUS = {
   pembayaran: ["menunggu_konfirmasi"],
   pesanan_baru: [
@@ -254,6 +257,9 @@ exports.getAntreanById = async (authUser, idOrder) => {
 // Update status order oleh admin toko
 exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
+  
+  // --- PERBAIKAN 2: MENDAPATKAN ID STAFF DARI TOKEN LOGIN ---
+  const currentStaffId = authUser?.id_user || authUser?.id_staff || null;
 
   if (!STATUS_VALID_ADMIN.includes(status)) {
     throw new Error(
@@ -288,6 +294,10 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     updatePayload.alasan_tolak_pembayaran = null;
   }
 
+  // --- PERBAIKAN 3: MEMASUKKAN ID STAFF KE TABEL ORDERS ---
+  if (currentStaffId) {
+    updatePayload.id_staff = currentStaffId;
+  }
 
   // Update status order
   const { data: updatedData, error } = await supabase
@@ -331,8 +341,8 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     }
   }
 
-  // Insert history untuk status yang di-set admin
-  await insertStatusHistory(idOrder, status, "admin_toko", null, keterangan);
+  // --- PERBAIKAN 4: MENYIMPAN ID STAFF KE TABEL HISTORY ---
+  await insertStatusHistory(idOrder, status, "admin_toko", currentStaffId, keterangan);
 
   if (status === "menunggu_pembayaran") {
     await notifyCustomerPaymentStatus(data, {

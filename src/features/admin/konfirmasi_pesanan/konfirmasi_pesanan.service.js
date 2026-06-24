@@ -19,6 +19,10 @@ const ORDER_SELECT = `
   alamat_pengantaran,
   catatan_pengiriman,
   id_customer,
+  id_staff,
+  staff:users!id_staff(
+    nama
+  ),
   customers (
     id_user,
     nama,
@@ -82,9 +86,9 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran", metodeOrder) =
  * Konfirmasi Pembayaran (Tahap 2 -> 3)
  * @param {number} id_orders 
  * @param {number} id_shops 
- * @param {object} data - { action: 'approve' | 'reject', reason?: string }
+ * @param {object} data - { action: 'approve' | 'reject', reason?: string, id_staff?: number }
  */
-exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
+exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff }) => {
   // Fetch current order info to prevent double-crediting and read payment details
   const { data: order, error: orderError } = await supabase
     .from("orders")
@@ -113,6 +117,11 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
 
   if (action === "reject" && reason) {
     updateData.alasan_tolak_pembayaran = reason;
+  }
+  
+  // Masukkan ID Staff yang menyetujui pembayaran
+  if (id_staff) {
+    updateData.id_staff = id_staff;
   }
 
   const { data, error } = await supabase
@@ -156,8 +165,8 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
     }
   }
 
-  // Simpan history
-  await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`);
+  // Simpan history dengan ID Staff
+  await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`, id_staff);
 
   // Kirim Notifikasi ke Customer
   if (data?.customers?.id_user) {
@@ -176,9 +185,9 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
  * Konfirmasi Pesanan Masuk (Tahap 1 -> 2)
  * @param {number} id_orders 
  * @param {number} id_shops 
- * @param {object} data - { action: 'approve' | 'reject', reason?: string }
+ * @param {object} data - { action: 'approve' | 'reject', reason?: string, id_staff?: number }
  */
-exports.confirmOrder = async (id_orders, id_shops, { action, reason }) => {
+exports.confirmOrder = async (id_orders, id_shops, { action, reason, id_staff }) => {
   // Jika disetujui, pindah ke status 'menunggu_pembayaran' agar customer bisa bayar
   const statusOrder = action === "approve" ? "menunggu_pembayaran" : "dibatalkan";
   
@@ -186,6 +195,11 @@ exports.confirmOrder = async (id_orders, id_shops, { action, reason }) => {
   
   if (action === "reject" && reason) {
     updateData.alasan_pembatalan = reason;
+  }
+
+  // Masukkan ID Staff yang menyetujui pesanan awal
+  if (id_staff) {
+    updateData.id_staff = id_staff;
   }
 
   const { data, error } = await supabase
@@ -198,8 +212,8 @@ exports.confirmOrder = async (id_orders, id_shops, { action, reason }) => {
 
   if (error) throw new Error(error.message);
 
-  // Simpan history
-  await this.insertStatusHistory(id_orders, statusOrder, `Pesanan ${action === 'approve' ? 'disetujui (menunggu pembayaran)' : 'ditolak'}. ${reason || ''}`);
+  // Simpan history dengan ID Staff
+  await this.insertStatusHistory(id_orders, statusOrder, `Pesanan ${action === 'approve' ? 'disetujui (menunggu pembayaran)' : 'ditolak'}. ${reason || ''}`, id_staff);
 
   // Kirim Notifikasi ke Customer
   if (data?.customers?.id_user) {
@@ -214,15 +228,15 @@ exports.confirmOrder = async (id_orders, id_shops, { action, reason }) => {
   return data;
 };
 
-
 /**
  * Helper untuk insert history status order
  */
-exports.insertStatusHistory = async (id_orders, status, keterangan) => {
+exports.insertStatusHistory = async (id_orders, status, keterangan, id_staff = null) => {
   const { error } = await supabase.from("order_status_history").insert({
     id_orders,
     status,
     keterangan,
+    id_staff,
     changed_by_role: "admin_toko",
   });
 
