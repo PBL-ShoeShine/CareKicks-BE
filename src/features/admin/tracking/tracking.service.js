@@ -1,4 +1,5 @@
 const supabase = require("../../../core/config/supabase");
+const { resolveStaffIds } = require("../../../core/services/resolve-staff-id");
 
 // Status yang boleh diupdate oleh staff via scan QR
 const STATUS_VALID_STAFF = new Set([
@@ -96,7 +97,7 @@ exports.getAllTracking = async (shopId, search = "") => {
       metode_order,
       metode_pengambilan,
       tgl_order,
-      customers (nama),
+      customers (id_user, nama, nomor_hp),
       detail_orders (
         id_detail_orders,
         merk,
@@ -126,9 +127,12 @@ exports.getTrackingDetail = async (orderId, shopId) => {
     .select(
       `
       *,
-      customers (nama, nomor_hp, alamat, latitude, longitude),
+      customers (id_user, nama, nomor_hp, alamat, latitude, longitude),
       detail_orders (*, services (*)),
-      shops (lat_toko, long_toko)
+      shops (lat_toko, long_toko),
+      staff:users!id_staff (
+        nama
+      )
     `,
     )
     .eq("id_orders", orderId)
@@ -136,6 +140,18 @@ exports.getTrackingDetail = async (orderId, shopId) => {
     .single();
 
   if (orderError) throw orderError;
+
+  // Fallback nomor_hp dari tabel users jika customers.nomor_hp null
+  if (order.customers && !order.customers.nomor_hp) {
+    const { data: userData } = await supabase
+      .from("users")
+      .select("no_hp")
+      .eq("id_user", order.customers.id_user)
+      .maybeSingle();
+    if (userData?.no_hp) {
+      order.customers.nomor_hp = userData.no_hp;
+    }
+  }
 
   // Timeline dari order_status_history
   const { data: timeline, error: timelineError } = await supabase
@@ -169,14 +185,46 @@ exports.getTrackingDetail = async (orderId, shopId) => {
 
   if (gpsError) throw gpsError;
 
-  const timelineNormalized = (timeline || []).map((item) => ({
-    id_history: item.id_history,
-    status: item.status,
-    keterangan: item.keterangan,
-    changed_by_role: item.changed_by_role,
-    created_at: item.created_at,
-    nama_staff: item.staff?.staff_profile?.nama ?? null,
-  }));
+  const assignedStaffName = order.staff?.nama ?? null;
+
+  const findStaffInGroup = (statusGroup) => {
+    for (const entry of (timeline || [])) {
+      if (statusGroup.includes(entry.status)) {
+        const name = entry.staff?.staff_profile?.nama;
+        if (name) return name;
+      }
+    }
+    return null;
+  };
+
+  const timelineNormalized = (timeline || []).map((item) => {
+    let namaStaff = item.staff?.staff_profile?.nama ?? null;
+
+    if (!namaStaff) {
+      // Layer 1: Workflow stage pair fallback (sedang_dijemput <-> sudah_dijemput, washing <-> selesai_cuci, sedang_diantar <-> selesai)
+      if (["sedang_dijemput", "sudah_dijemput"].includes(item.status)) {
+        namaStaff = findStaffInGroup(["sedang_dijemput", "sudah_dijemput"]);
+      } else if (["washing", "selesai_cuci"].includes(item.status)) {
+        namaStaff = findStaffInGroup(["washing", "selesai_cuci"]);
+      } else if (["sedang_diantar", "selesai"].includes(item.status)) {
+        namaStaff = findStaffInGroup(["sedang_diantar", "selesai"]);
+      }
+
+      // Layer 2: Order assigned staff fallback for "sedang" statuses
+      if (!namaStaff && ["sedang_dijemput", "washing", "sedang_diantar"].includes(item.status)) {
+        namaStaff = assignedStaffName;
+      }
+    }
+
+    return {
+      id_history: item.id_history,
+      status: item.status,
+      keterangan: item.keterangan,
+      changed_by_role: item.changed_by_role,
+      created_at: item.created_at,
+      nama_staff: namaStaff,
+    };
+  });
 
   return {
     order,
@@ -302,9 +350,15 @@ exports.updateStatus = async (orderId, shopId, payload) => {
     );
   }
 
+  const resolved = await resolveStaffIds(id_staff);
+  const orderStaffId = resolved.id_user; // For orders.id_staff column
+  const historyStaffId = resolved.id_staff; // For order_status_history.id_staff column
+
   // Update cache status di tabel orders
   const orderUpdateData = { status_order: normalizedStatus };
-
+  if (orderStaffId) {
+    orderUpdateData.id_staff = orderStaffId;
+  }
 
   if (is_validation && payload.foto_url) {
     orderUpdateData.foto_validasi = payload.foto_url;
@@ -325,7 +379,7 @@ exports.updateStatus = async (orderId, shopId, payload) => {
     orderId,
     normalizedStatus,
     "staff",
-    id_staff,
+    historyStaffId,
     keterangan,
   );
 
@@ -333,7 +387,7 @@ exports.updateStatus = async (orderId, shopId, payload) => {
   if (STATUS_GPS.has(normalizedStatus) && latitude && longitude) {
     await insertGpsLog(
       orderId,
-      id_staff,
+      historyStaffId,
       normalizedStatus,
       latitude,
       longitude,
