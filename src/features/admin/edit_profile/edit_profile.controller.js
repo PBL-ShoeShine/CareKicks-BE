@@ -132,6 +132,14 @@ const editProfileController = {
         if (updateError) throw updateError;
       }
 
+      // Sync nama ke staff_profile jika user adalah staff
+      if (nama) {
+        await supabase
+          .from('staff_profile')
+          .update({ nama })
+          .eq('id_user', id_user);
+      }
+
       return res.status(200).json({ success: true, message: "Perubahan profil berhasil disimpan." });
 
     } catch (error) {

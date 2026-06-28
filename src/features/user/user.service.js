@@ -44,6 +44,16 @@ exports.register = async ({ nama, no_hp, email, password }) => {
 
   if (error) throw new Error(error.message);
 
+  // Buat record di tabel customers agar fitur cart dan order bisa digunakan
+  const { error: custError } = await supabase
+    .from("customers")
+    .insert([{ id_user: data.id_user, nama, nomor_hp: no_hp }]);
+
+  if (custError) {
+    console.error("Gagal membuat record customer:", custError.message);
+    // Jangan throw — user sudah berhasil dibuat, hanya log warning
+  }
+
   const token = jwtService.signToken({
     id: data.id_user,
     id_user: data.id_user,

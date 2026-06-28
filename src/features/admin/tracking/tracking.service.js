@@ -96,7 +96,7 @@ exports.getAllTracking = async (shopId, search = "") => {
       metode_order,
       metode_pengambilan,
       tgl_order,
-      customers (nama),
+      customers (id_user, nama, nomor_hp),
       detail_orders (
         id_detail_orders,
         merk,
@@ -126,7 +126,7 @@ exports.getTrackingDetail = async (orderId, shopId) => {
     .select(
       `
       *,
-      customers (nama, nomor_hp, alamat, latitude, longitude),
+      customers (id_user, nama, nomor_hp, alamat, latitude, longitude),
       detail_orders (*, services (*)),
       shops (lat_toko, long_toko)
     `,
@@ -136,6 +136,18 @@ exports.getTrackingDetail = async (orderId, shopId) => {
     .single();
 
   if (orderError) throw orderError;
+
+  // Fallback nomor_hp dari tabel users jika customers.nomor_hp null
+  if (order.customers && !order.customers.nomor_hp) {
+    const { data: userData } = await supabase
+      .from("users")
+      .select("no_hp")
+      .eq("id_user", order.customers.id_user)
+      .maybeSingle();
+    if (userData?.no_hp) {
+      order.customers.nomor_hp = userData.no_hp;
+    }
+  }
 
   // Timeline dari order_status_history
   const { data: timeline, error: timelineError } = await supabase
