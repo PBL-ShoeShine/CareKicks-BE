@@ -166,7 +166,7 @@ exports.createOnlineOrder = async ({
     totalHarga += serviceMap[svc.id_services] || 0;
   }
 
-  // Step 6: Generate kode_order dan QR code (Format: PREFIX-YYMMDD-XXX)
+  // Step 6: Generate kode_order (Format: PREFIX-YYMMDD-XXX)
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -188,9 +188,8 @@ exports.createOnlineOrder = async ({
   const urutanStr = String(urutan).padStart(3, "0");
 
   const kodeOrder = `${prefix}-${yymmdd}-${urutanStr}`;
-  const qr = generateQRCode(kodeOrder);
 
-  // Step 7: Insert ke tabel orders
+  // Step 7: Insert ke tabel orders (QR code akan di-generate saat payment dikonfirmasi)
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
     .insert({
@@ -204,8 +203,8 @@ exports.createOnlineOrder = async ({
       alamat_pengantaran: alamat,
       lat_order,
       long_order,
-      qr_image: qr.filename,
-      link_qr: qr.url,
+      qr_image: null,
+      link_qr: null,
       total_ongkir,
       status_pembayaran: "unpaid",
       upload_bkt_byr: null,
@@ -279,7 +278,6 @@ exports.createOnlineOrder = async ({
     status_order: orderData.status_order,
     status_pembayaran: orderData.status_pembayaran,
     total_harga: totalHarga,
-    qr_code: qr.url,
     foto_sepatu_url: fotoUrls[0], // Return first url for frontend quick view
     nm_toko: shop.nm_toko,
     services: validServices.map((s) => ({
@@ -471,7 +469,7 @@ exports.createOnlineOrderFromCart = async ({
     item.service.nama_layanan = svcNameMap[item.id_services];
   }
 
-  // Step 4: Generate kode_order dan QR
+  // Step 4: Generate kode_order
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
@@ -489,7 +487,6 @@ exports.createOnlineOrderFromCart = async ({
   const urutan = (count || 0) + 1;
   const urutanStr = String(urutan).padStart(3, "0");
   const kodeOrder = `${prefix}-${yymmdd}-${urutanStr}`;
-  const qr = generateQRCode(kodeOrder);
 
   // Step 5: Hitung total harga dari DB (bukan dari client)
   let totalHarga = 0;
@@ -497,7 +494,7 @@ exports.createOnlineOrderFromCart = async ({
     totalHarga += svcPriceMap[item.id_services] || 0;
   }
 
-  // Step 6: Insert orders
+  // Step 6: Insert orders (QR code akan di-generate saat payment dikonfirmasi)
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
     .insert({
@@ -511,8 +508,8 @@ exports.createOnlineOrderFromCart = async ({
       alamat_pengantaran: alamat,
       lat_order,
       long_order,
-      qr_image: qr.filename,
-      link_qr: qr.url,
+      qr_image: null,
+      link_qr: null,
       total_ongkir: total_ongkir || 0,
       status_pembayaran: "unpaid",
       id_shops: idShops,
@@ -612,7 +609,6 @@ exports.createOnlineOrderFromCart = async ({
     status_order: orderData.status_order,
     status_pembayaran: orderData.status_pembayaran,
     total_harga: totalHarga + (total_ongkir || 0),
-    qr_code: qr.url,
     nm_toko: shop.nm_toko,
     services: cartItems.map((item) => ({
       id_services: item.id_services,

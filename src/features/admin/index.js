@@ -31,6 +31,15 @@ router.use("/inventaris", require("./inventaris/inventaris.routes"));
 // 7. Admin Toko routes
 router.use("/toko", require("./toko"));
 
+// Admin Shops routes (SuperAdmin portal integration)
+router.use("/shops", require("./shops"));
+
+// Admin Users routes (SuperAdmin portal integration)
+router.use("/users", require("./users"));
+
+// Admin Reviews routes (SuperAdmin portal integration)
+router.use("/reviews", require("./reviews"));
+
 // 8. Admin Tracking routes
 router.use("/tracking", require("./tracking"));
 

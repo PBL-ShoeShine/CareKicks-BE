@@ -64,3 +64,44 @@ exports.getShopProfile = async (req, res) => {
     });
   }
 };
+
+exports.registerShop = async (req, res) => {
+  try {
+    const id_user = req.user.id_user;
+    if (!id_user) {
+      return res.status(401).json({
+        success: false,
+        message: "User tidak terautentikasi"
+      });
+    }
+
+    const files = req.files || {};
+    const foto_toko_file = files["foto_toko"] ? files["foto_toko"][0] : null;
+    const foto_ktp_file = files["foto_ktp"] ? files["foto_ktp"][0] : null;
+
+    if (!foto_toko_file || !foto_ktp_file) {
+      return res.status(400).json({
+        success: false,
+        message: "Foto toko dan Foto KTP wajib diunggah"
+      });
+    }
+
+    const data = await shopService.registerShop(id_user, req.body, {
+      foto_toko_file,
+      foto_ktp_file
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Pendaftaran toko berhasil diajukan",
+      data
+    });
+  } catch (error) {
+    console.error("[registerShop] Error:", error.message);
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Gagal mengajukan pendaftaran toko"
+    });
+  }
+};
+

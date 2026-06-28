@@ -1,7 +1,16 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 const pushNotification = require("../../../core/services/push-notification.service");
+const crypto = require("crypto");
 
+// Generate QR code
+function _generateQRCode(kodeOrder) {
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kodeOrder)}`;
+  const filename = `qr_${kodeOrder}_${Date.now()}.png`;
+  return { url, filename };
+}
+
+// --- PERBAIKAN: Menambahkan id_staff dan relasi namanya ke dalam Select ---
 const ANTREAN_SELECT = `
   id_orders,
   kode_order,
@@ -13,6 +22,8 @@ const ANTREAN_SELECT = `
   metode_order,
   qr_image,
   link_qr,
+  id_staff,
+  staff:users!id_staff(nama),
   customers (
     id_user,
     nama
@@ -120,7 +131,6 @@ const insertStatusHistory = async (
 };
 
 const notifyCustomerPaymentStatus = async (order, notification) => {
-  // Supabase bisa mengembalikan relation sebagai object atau array
   const customerData = Array.isArray(order?.customers)
     ? order.customers[0]
     : order?.customers;
@@ -166,7 +176,6 @@ const notifyCustomerPaymentStatus = async (order, notification) => {
   }
 };
 
-// Ambi antrean by tab
 exports.getAllAntrean = async (authUser, tab, metodeOrder) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
 
@@ -194,7 +203,6 @@ exports.getAllAntrean = async (authUser, tab, metodeOrder) => {
   return (data || []).map(normalizeQrOrder);
 };
 
-// Ambil total antrean aktif + selisih kemarin
 exports.getTotalAntrean = async (authUser) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
 
@@ -237,7 +245,6 @@ exports.getTotalAntrean = async (authUser) => {
   return { total, selisih: hariIni - kemarin, hariIni, kemarin };
 };
 
-// Ambil detail satu order
 exports.getAntreanById = async (authUser, idOrder) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
 
@@ -251,9 +258,11 @@ exports.getAntreanById = async (authUser, idOrder) => {
   return normalizeQrOrder(data);
 };
 
-// Update status order oleh admin toko
 exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
+  
+  // --- PERBAIKAN: Menangkap ID Staff dari authUser ---
+  const currentStaffId = authUser?.id_user || authUser?.id_staff || null;
 
   if (!STATUS_VALID_ADMIN.includes(status)) {
     throw new Error(
@@ -261,7 +270,6 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     );
   }
 
-  // Fetch current order info to avoid double crediting and read payment details
   const { data: currentOrder, error: currentOrderError } = await supabase
     .from("orders")
     .select(`
@@ -288,8 +296,11 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     updatePayload.alasan_tolak_pembayaran = null;
   }
 
+  // --- PERBAIKAN: Memasukkan ID Staff ke dalam payload update tabel orders ---
+  if (currentStaffId) {
+    updatePayload.id_staff = currentStaffId;
+  }
 
-  // Update status order
   const { data: updatedData, error } = await supabase
     .from("orders")
     .update(updatePayload)
@@ -300,7 +311,6 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   if (error) throw new Error(error.message);
   let data = updatedData;
 
-  // If approved/dikonfirmasi and order was online and not already paid, update the shop's balance
   if (status === "dikonfirmasi" && currentOrder.metode_order === "online" && currentOrder.status_pembayaran !== "paid") {
     const serviceTotal = (currentOrder.detail_orders || []).reduce((sum, item) => sum + Number(item.total_harga || 0), 0);
     const ongkirTotal = Number(currentOrder.total_ongkir || 0);
@@ -331,8 +341,8 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
     }
   }
 
-  // Insert history untuk status yang di-set admin
-  await insertStatusHistory(idOrder, status, "admin_toko", null, keterangan);
+  // --- PERBAIKAN: Menyertakan ID Staff ke riwayat history ---
+  await insertStatusHistory(idOrder, status, "admin_toko", currentStaffId, keterangan);
 
   if (status === "menunggu_pembayaran") {
     await notifyCustomerPaymentStatus(data, {
@@ -347,6 +357,9 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
 
   if (status === "dikonfirmasi") {
     if (data.metode_order === "online") {
+      // Generate QR code saat online order masuk ke Pesanan Baru
+      const qr = _generateQRCode(data.kode_order);
+
       // Online: setelah dikonfirmasi → otomatis menunggu_dijemput
       const { data: finalData, error: finalError } = await supabase
         .from("orders")
@@ -354,6 +367,8 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
           status_order: "menunggu_dijemput",
           status_pembayaran: "paid",
           alasan_tolak_pembayaran: null,
+          qr_image: qr.filename,
+          link_qr: qr.url,
         })
         .eq("id_orders", idOrder)
         .select(ANTREAN_SELECT)

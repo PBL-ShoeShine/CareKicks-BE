@@ -30,4 +30,12 @@ router.patch(
 	tokoController.updateOperatingHours,
 );
 
+// POST appeal shop suspension
+router.post(
+	"/appeal",
+	authMiddleware,
+	upload.single("foto_bukti"),
+	tokoController.submitAppeal,
+);
+
 module.exports = router;

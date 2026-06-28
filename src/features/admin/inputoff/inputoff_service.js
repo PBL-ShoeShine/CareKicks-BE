@@ -2,6 +2,30 @@ const supabase = require("../../../core/config/supabase");
 const crypto = require("crypto");
 const shopAccess = require("../../../core/services/shop-access.service");
 
+const generateKodeOrderOffline = async () => {
+  const date = new Date();
+  const dateString = date.toISOString().slice(2, 10).replace(/-/g, "");
+  const prefix = `CAR-${dateString}-`;
+
+  const { data: lastOrder, error } = await supabase
+    .from("orders")
+    .select("kode_order")
+    .like("kode_order", `${prefix}%`)
+    .order("kode_order", { ascending: false })
+    .limit(1);
+
+  let urutan = 1;
+  if (lastOrder && lastOrder.length > 0) {
+    const lastKode = lastOrder[0].kode_order;
+    const lastUrutan = parseInt(lastKode.split("-").pop());
+    if (!isNaN(lastUrutan)) {
+      urutan = lastUrutan + 1;
+    }
+  }
+
+  return `${prefix}${urutan.toString().padStart(3, "0")}`;
+};
+
 exports.createOfflineOrder = async (inputData) => {
   const {
     userId,
@@ -17,7 +41,6 @@ exports.createOfflineOrder = async (inputData) => {
   } = inputData;
 
   try {
-    // Step 0: Upload photo to Supabase storage if provided
     let foto_sebelum_url = null;
     if (fotoSebelumFile) {
       const fileExt = fotoSebelumFile.mimetype.split("/")[1];
@@ -42,7 +65,6 @@ exports.createOfflineOrder = async (inputData) => {
       foto_sebelum_url = publicUrlData.publicUrl;
     }
 
-    // Ambil toko dari relasi login admin/staff, bukan dari body request.
     const id_shops = await shopAccess.getShopIdForUser(
       inputData.authUser || { id: userId, id_user: userId },
     );
@@ -76,10 +98,8 @@ exports.createOfflineOrder = async (inputData) => {
       customerId = newCustomer[0].id_customers;
     }
 
-    // Step 3: Generate order code and QR code
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const kode_order = `ORD${timestamp}${randomStr}`;
+
+    const kode_order = await generateKodeOrderOffline();
     const qr_code = generateQRCode(kode_order);
 
     // Step 4: Calculate total price from services
@@ -107,6 +127,8 @@ exports.createOfflineOrder = async (inputData) => {
         link_qr: qr_code.url,
         total_ongkir: 0,
         status_pembayaran: "paid",
+        // --- PERBAIKAN: MENYIMPAN ID STAFF PEMBUAT ORDER ---
+        id_staff: userId || null, 
       })
       .select();
 
@@ -116,7 +138,6 @@ exports.createOfflineOrder = async (inputData) => {
 
     const id_orders = orderData[0].id_orders;
 
-    // Step 6: Create detail orders for each service
     const detailOrdersInserts = services.map((service) => ({
       id_orders,
       id_services: service.id_services,
@@ -138,7 +159,6 @@ exports.createOfflineOrder = async (inputData) => {
       throw detailError;
     }
 
-    // Step 7: Tambahkan saldo toko
     const { data: shopSaldo, error: saldoFetchError } = await supabase
       .from("shops")
       .select("saldo_toko")
@@ -163,12 +183,11 @@ exports.createOfflineOrder = async (inputData) => {
       throw saldoUpdateError;
     }
 
-    // Step 7: Create initial tracking log
     const { error: trackingError } = await supabase
       .from("order_status_history")
       .insert({
         id_orders,
-        id_staff: null,
+        id_staff: userId || null, 
         status: "dikonfirmasi",
         keterangan: `Order offline dibuat - ${catatan || ""}`,
         changed_by_role: "admin_toko",
@@ -178,7 +197,6 @@ exports.createOfflineOrder = async (inputData) => {
       throw trackingError;
     }
 
-    // Step 8: Create notification for admin
     const { error: notifError } = await supabase.from("notification").insert({
       id_user: userId,
       title: "Pesanan Offline Baru",

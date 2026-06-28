@@ -1,6 +1,14 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 const pushNotification = require("../../../core/services/push-notification.service");
+const crypto = require("crypto");
+
+// Generate QR code URL
+function generateQRCode(kodeOrder) {
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kodeOrder)}`;
+  const filename = `qr_${kodeOrder}_${Date.now()}.png`;
+  return { url, filename };
+}
 
 /**
  * Service untuk menangani konfirmasi pesanan (Alur 5 Tahap)
@@ -16,9 +24,15 @@ const ORDER_SELECT = `
   metode_bayar,
   upload_bkt_byr,
   total_ongkir,
+  qr_image,
+  link_qr,
   alamat_pengantaran,
   catatan_pengiriman,
   id_customer,
+  id_staff,
+  staff:users!id_staff(
+    nama
+  ),
   customers (
     id_user,
     nama,
@@ -82,9 +96,9 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran", metodeOrder) =
  * Konfirmasi Pembayaran (Tahap 2 -> 3)
  * @param {number} id_orders 
  * @param {number} id_shops 
- * @param {object} data - { action: 'approve' | 'reject', reason?: string }
+ * @param {object} data - { action: 'approve' | 'reject', reason?: string, id_staff?: number }
  */
-exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
+exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff }) => {
   // Fetch current order info to prevent double-crediting and read payment details
   const { data: order, error: orderError } = await supabase
     .from("orders")
@@ -114,13 +128,18 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
   if (action === "reject" && reason) {
     updateData.alasan_tolak_pembayaran = reason;
   }
+  
+  // Masukkan ID Staff yang menyetujui pembayaran
+  if (id_staff) {
+    updateData.id_staff = id_staff;
+  }
 
   const { data, error } = await supabase
     .from("orders")
     .update(updateData)
     .eq("id_orders", id_orders)
     .eq("id_shops", id_shops)
-    .select("*, customers(id_user)")
+    .select(ORDER_SELECT) // <--- PERBAIKAN DI SINI: MENGGUNAKAN ORDER_SELECT
     .single();
 
   if (error) throw new Error(error.message);
@@ -156,17 +175,36 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
     }
   }
 
+  // Simpan history dengan ID Staff
+  await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`, id_staff);
+  // Generate QR code saat payment dikonfirmasi (online order masuk ke Pesanan Baru)
+  if (action === "approve" && order.metode_order === "online") {
+    const qr = generateQRCode(data.kode_order);
+    const { error: qrError } = await supabase
+      .from("orders")
+      .update({
+        qr_image: qr.filename,
+        link_qr: qr.url,
+      })
+      .eq("id_orders", id_orders);
+
+    if (qrError) {
+      console.error("Gagal menyimpan QR code:", qrError.message);
+    }
+  }
+
   // Simpan history
   await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`);
 
   // Kirim Notifikasi ke Customer
-  if (data?.customers?.id_user) {
+  const customerUserId = Array.isArray(data?.customers) ? data.customers[0]?.id_user : data?.customers?.id_user;
+  if (customerUserId) {
     const title = action === 'approve' ? 'Pembayaran Berhasil' : 'Pembayaran Ditolak';
     const body = action === 'approve' 
       ? `Pembayaran untuk pesanan ${data.kode_order} telah kami terima. Pesanan Anda kini masuk ke antrean utama.`
       : `Pembayaran untuk pesanan ${data.kode_order} ditolak. Alasan: ${reason || '-'}`;
     
-    await pushNotification.sendToUser(data.customers.id_user, { title, body }, { orderId: id_orders });
+    await pushNotification.sendToUser(customerUserId, { title, body }, { orderId: id_orders });
   }
 
   return data;
@@ -176,9 +214,9 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason }) => {
  * Konfirmasi Pesanan Masuk (Tahap 1 -> 2)
  * @param {number} id_orders 
  * @param {number} id_shops 
- * @param {object} data - { action: 'approve' | 'reject', reason?: string }
+ * @param {object} data - { action: 'approve' | 'reject', reason?: string, id_staff?: number }
  */
-exports.confirmOrder = async (id_orders, id_shops, { action, reason }) => {
+exports.confirmOrder = async (id_orders, id_shops, { action, reason, id_staff }) => {
   // Jika disetujui, pindah ke status 'menunggu_pembayaran' agar customer bisa bayar
   const statusOrder = action === "approve" ? "menunggu_pembayaran" : "dibatalkan";
   
@@ -188,41 +226,47 @@ exports.confirmOrder = async (id_orders, id_shops, { action, reason }) => {
     updateData.alasan_pembatalan = reason;
   }
 
+  // Masukkan ID Staff yang menyetujui pesanan awal
+  if (id_staff) {
+    updateData.id_staff = id_staff;
+  }
+
   const { data, error } = await supabase
     .from("orders")
     .update(updateData)
     .eq("id_orders", id_orders)
     .eq("id_shops", id_shops)
-    .select("*, customers(id_user)")
+    .select(ORDER_SELECT) // <--- PERBAIKAN DI SINI: MENGGUNAKAN ORDER_SELECT
     .single();
 
   if (error) throw new Error(error.message);
 
-  // Simpan history
-  await this.insertStatusHistory(id_orders, statusOrder, `Pesanan ${action === 'approve' ? 'disetujui (menunggu pembayaran)' : 'ditolak'}. ${reason || ''}`);
+  // Simpan history dengan ID Staff
+  await this.insertStatusHistory(id_orders, statusOrder, `Pesanan ${action === 'approve' ? 'disetujui (menunggu pembayaran)' : 'ditolak'}. ${reason || ''}`, id_staff);
 
   // Kirim Notifikasi ke Customer
-  if (data?.customers?.id_user) {
+  const customerUserId = Array.isArray(data?.customers) ? data.customers[0]?.id_user : data?.customers?.id_user;
+  if (customerUserId) {
     const title = action === 'approve' ? 'Pesanan Disetujui' : 'Pesanan Dibatalkan';
     const body = action === 'approve'
       ? `Pesanan ${data.kode_order} telah disetujui. Silakan unggah bukti pembayaran agar dapat kami proses.`
       : `Pesanan ${data.kode_order} telah dibatalkan oleh toko. Alasan: ${reason || '-'}`;
 
-    await pushNotification.sendToUser(data.customers.id_user, { title, body }, { orderId: id_orders });
+    await pushNotification.sendToUser(customerUserId, { title, body }, { orderId: id_orders });
   }
 
   return data;
 };
 
-
 /**
  * Helper untuk insert history status order
  */
-exports.insertStatusHistory = async (id_orders, status, keterangan) => {
+exports.insertStatusHistory = async (id_orders, status, keterangan, id_staff = null) => {
   const { error } = await supabase.from("order_status_history").insert({
     id_orders,
     status,
     keterangan,
+    id_staff,
     changed_by_role: "admin_toko",
   });
 

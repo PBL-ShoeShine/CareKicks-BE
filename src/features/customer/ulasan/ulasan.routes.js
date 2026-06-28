@@ -12,7 +12,7 @@ router.get("/", ulasanController.getAllUlasan);
 router.post(
   "/",
   authMiddleware,
-  upload.array("foto_ulasan", 5),
+  upload.array("foto_ulasan", 5), // Memastikan multer memproses ini sebagai array
   ulasanController.createUlasan
 );
 

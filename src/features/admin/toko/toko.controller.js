@@ -197,3 +197,23 @@ exports.updateOperatingHours = async (req, res) => {
 		});
 	}
 };
+
+exports.submitAppeal = async (req, res) => {
+	try {
+		const { alasan_banding } = req.body || {};
+		const data = await tokoService.submitAppeal(req.user, { alasan_banding, file: req.file });
+
+		return res.status(200).json({
+			success: true,
+			message: "Pengajuan banding berhasil diajukan",
+			data,
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(400).json({
+			success: false,
+			message: error.message || "Gagal mengajukan banding",
+		});
+	}
+};
+
