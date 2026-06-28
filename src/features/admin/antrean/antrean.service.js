@@ -26,7 +26,8 @@ const ANTREAN_SELECT = `
   staff:users!id_staff(nama),
   customers (
     id_user,
-    nama
+    nama,
+    nomor_hp
   ),
   detail_orders (
     id_detail_orders,
@@ -41,11 +42,23 @@ const ANTREAN_SELECT = `
       id_services,
       nama_layanan
     )
+  ),
+  order_status_history (
+    id_history,
+    status,
+    keterangan,
+    changed_by_role,
+    created_at,
+    staff (
+      id_staff,
+      staff_profile (nama)
+    )
   )
 `;
 
 // Mapping tab antrean ke status enum
 const TAB_STATUS = {
+  pesanan_masuk: ["pending"],
   pembayaran: ["menunggu_konfirmasi"],
   pesanan_baru: [
     "dikonfirmasi",
