@@ -319,3 +319,34 @@ exports.updateProfilePhoto = async (idUser, file) => {
 
   return { foto_profil: publicUrl };
 };
+
+// --- CHECK ROLE (untuk polling status role & toko dari Flutter) ---
+exports.checkRole = async (idUser) => {
+  const { data: userData, error } = await supabase
+    .from("users")
+    .select("id_user, nama, email, jenis_role, path_gambar")
+    .eq("id_user", idUser)
+    .single();
+
+  if (error || !userData) throw new Error("User tidak ditemukan");
+
+  const result = {
+    jenis_role: userData.jenis_role,
+    user: userData,
+  };
+
+  // Check if user has a shop (either as shops_admin or pending customer registration)
+  const { data: shopAdminList } = await supabase
+    .from("shops_admin")
+    .select("id_shops_admin, shops(id_shops, nm_toko, status_verifikasi, alasan_penangguhan)")
+    .eq("id_user", idUser);
+
+  if (shopAdminList && shopAdminList.length > 0) {
+    const shopAdmin = shopAdminList[0];
+    const shop = Array.isArray(shopAdmin.shops) ? shopAdmin.shops[0] : shopAdmin.shops;
+    result.shop = shop;
+    result.id_shops_admin = shopAdmin.id_shops_admin;
+  }
+
+  return result;
+};
