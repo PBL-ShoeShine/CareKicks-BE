@@ -71,7 +71,7 @@ Content-Type: application/json
 | ---------------------- | ------ | -------- | ------------------------- | -------------------- |
 | nama_customer          | string | ✓        | Any                       | Customer full name   |
 | nomor_telepon          | string | ✓        | Any                       | 08xx or +62xx format |
-| jenis_sepatu           | string | ✓        | Sneakers, Leather, Canvas | Shoe type            |
+| jenis_sepatu           | string | ✓        | Any                       | Shoe type            |
 | services               | array  | ✓        | Array of objects          | Min 1 service        |
 | services[].id_services | number | ✓        | Any                       | Must exist in DB     |
 | services[].price       | number | ✓        | > 0                       | In IDR (Rupiah)      |
@@ -101,14 +101,6 @@ Content-Type: application/json
 }
 ```
 
-### Invalid Shoe Type (400)
-
-```json
-{
-  "success": false,
-  "message": "jenis_sepatu must be 'Sneakers', 'Leather', or 'Canvas'"
-}
-```
 
 ### No Authorization (401)
 

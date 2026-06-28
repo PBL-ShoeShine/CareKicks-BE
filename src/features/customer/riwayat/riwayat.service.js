@@ -1,34 +1,37 @@
 const supabase = require("../../../core/config/supabase");
+
 const getRiwayat = async (customerId, { status, search }) => {
   let query = supabase
     .from("orders")
     .select(
       `
-      id,
-      order_number,
-      service_type,
-      status,
-      date,
-      total_price,
-      created_at,
-      order_items (
-        product_name,
-        quantity
+      id_orders,
+      kode_order,
+      metode_order,
+      status_order,
+      tgl_order,
+      total_ongkir,
+      metode_bayar,
+      status_pembayaran,
+      shops (
+        nm_toko
+      ),
+      detail_orders (
+        id_detail_orders,
+        total_harga
       )
     `,
     )
-    .eq("customer_id", customerId)
-    .order("created_at", { ascending: false });
+    .eq("id_customer", customerId)
+    .order("tgl_order", { ascending: false });
 
-  // filter status kalau ada
   if (status) {
-    query = query.eq("status", status);
+    query = query.eq("status_order", status);
   }
 
-  // filter search kalau ada
   if (search) {
     query = query.or(
-      `order_number.ilike.%${search}%,service_type.ilike.%${search}%`,
+      `kode_order.ilike.%${search}%,metode_order.ilike.%${search}%`,
     );
   }
 

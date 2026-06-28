@@ -4,18 +4,18 @@ class ManajemenStaffController {
   // 1. Tambah Staff
   async createStaff(req, res) {
     try {
-      const { nama, email, no_hp, role, password } = req.body;
+      const { nama, email, no_hp, password } = req.body;
 
       const result = await ManajemenStaffService.registerStaff(req.user, {
         nama,
         email,
         no_hp,
-        role,
         password,
         status: "AKTIF",
       });
 
-      res.status(201).json({ success: true, data: result });
+      // Menggunakan 200 agar konsisten dengan endpoint lain jika diinginkan
+      res.status(200).json({ success: true, data: result });
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
     }
@@ -36,7 +36,10 @@ class ManajemenStaffController {
   // 3. Detail Staff
   async getStaffById(req, res) {
     try {
-      const result = await ManajemenStaffService.getStaffById(req.user, req.params.id);
+      const result = await ManajemenStaffService.getStaffById(
+        req.user,
+        req.params.id,
+      );
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       res
@@ -49,8 +52,9 @@ class ManajemenStaffController {
   async updateStaffStatus(req, res) {
     try {
       const { id } = req.params;
-      const updateData = req.body; // Bisa menerima update status, nama, atau role
+      const updateData = req.body;
 
+      // Service akan menangani update hanya pada field yang diizinkan (nama, email, no_hp, status)
       const result = await ManajemenStaffService.updateStaffProfile(
         req.user,
         id,

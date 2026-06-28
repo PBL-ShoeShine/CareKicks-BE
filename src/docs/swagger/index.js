@@ -56,6 +56,14 @@ const openapi = {
       description: "Admin profile management and password change",
     },
     {
+      name: "Admin Metode Pembayaran",
+      description: "Manajemen metode pembayaran oleh admin",
+    },
+    {
+      name: "Customer - Order",
+      description: "Pemesanan online oleh customer",
+    },
+    {
       name: "Customer - Riwayat",
       description: "Riwayat pesanan customer",
     },
@@ -66,6 +74,10 @@ const openapi = {
     {
       name: "Customer - Payment",
       description: "Pembayaran pesanan customer",
+    },
+    {
+      name: "Customer - Profile",
+      description: "Manajemen profil customer dan perubahan password",
     },
   ],
   components,

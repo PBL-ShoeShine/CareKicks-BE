@@ -1,49 +1,44 @@
-const detailOrderPaths = {
-  "/customer/orders/{orderId}": {
+module.exports = {
+  "/customer/detail-order/{orderId}": {
     get: {
       tags: ["Customer - Detail Order"],
-      summary: "Ambil detail pesanan berdasarkan ID",
+      summary: "Get detailed information of a specific order",
       security: [{ bearerAuth: [] }],
       parameters: [
         {
           name: "orderId",
           in: "path",
           required: true,
-          schema: { type: "string", format: "uuid" },
-          description: "UUID dari pesanan",
+          description: "ID of the order to retrieve",
+          schema: { type: "integer" },
         },
       ],
       responses: {
         200: {
-          description: "Berhasil mengambil detail pesanan",
+          description: "Order details retrieved successfully",
           content: {
             "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: { type: "string", example: "success" },
-                  data: {
-                    type: "object",
-                    properties: {
-                      order: { $ref: "#/components/schemas/Order" },
-                      items: {
-                        type: "array",
-                        items: { $ref: "#/components/schemas/OrderItem" },
-                      },
-                      payment: { $ref: "#/components/schemas/Payment" },
-                    },
-                  },
-                },
-              },
+              schema: { $ref: "#/components/schemas/DetailOrderResponse" },
             },
           },
         },
-        401: { description: "Unauthorized" },
-        404: { description: "Pesanan tidak ditemukan" },
-        500: { description: "Internal Server Error" },
+        404: {
+          description: "Customer or Order not found",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ErrorResponse" },
+            },
+          },
+        },
+        500: {
+          description: "Server error",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ErrorResponse" },
+            },
+          },
+        },
       },
     },
   },
 };
-
-module.exports = detailOrderPaths;

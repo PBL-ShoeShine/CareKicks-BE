@@ -1,51 +1,49 @@
-const riwayatPaths = {
-  "/customer/orders": {
+module.exports = {
+  "/customer/riwayat": {
     get: {
       tags: ["Customer - Riwayat"],
-      summary: "Ambil daftar riwayat pesanan customer",
+      summary: "Get order history for the current customer",
       security: [{ bearerAuth: [] }],
       parameters: [
         {
           name: "status",
           in: "query",
-          required: false,
-          schema: {
-            type: "string",
-            enum: ["menunggu", "di_proses", "selesai"],
-          },
-          description: "Filter berdasarkan status pesanan",
+          description: "Filter order history by status_order",
+          schema: { type: "string" },
         },
         {
           name: "search",
           in: "query",
-          required: false,
+          description: "Search by kode_order or metode_order (partial match)",
           schema: { type: "string" },
-          description: "Cari berdasarkan nama layanan atau nomor pesanan",
         },
       ],
       responses: {
         200: {
-          description: "Berhasil mengambil daftar pesanan",
+          description: "Order history retrieved successfully",
           content: {
             "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: { type: "string", example: "success" },
-                  data: {
-                    type: "array",
-                    items: { $ref: "#/components/schemas/Order" },
-                  },
-                },
-              },
+              schema: { $ref: "#/components/schemas/RiwayatResponse" },
             },
           },
         },
-        401: { description: "Unauthorized" },
-        500: { description: "Internal Server Error" },
+        404: {
+          description: "Customer data not found",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ErrorResponse" },
+            },
+          },
+        },
+        500: {
+          description: "Server error",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ErrorResponse" },
+            },
+          },
+        },
       },
     },
   },
 };
-
-module.exports = riwayatPaths;

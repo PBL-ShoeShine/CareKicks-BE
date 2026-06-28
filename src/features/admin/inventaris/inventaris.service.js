@@ -246,3 +246,41 @@ exports.addStock = async (id, shopId, amount) => {
   }
 };
 
+exports.reduceStock = async (id, shopId, amount) => {
+  try {
+    // Get current stock
+    const { data: existing, error: fetchError } = await supabase
+      .from("inventory")
+      .select("stok_saat_ini")
+      .eq("id_inventory", id)
+      .eq("id_shops", shopId)
+      .single();
+
+    if (fetchError || !existing) {
+      throw new Error("Inventory item not found or unauthorized");
+    }
+
+    const newStock = Number(existing.stok_saat_ini) - Number(amount);
+    const finalStock = Math.max(0, newStock);
+
+    const { data, error } = await supabase
+      .from("inventory")
+      .update({ 
+        stok_saat_ini: finalStock,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id_inventory", id)
+      .eq("id_shops", shopId)
+      .select(INVENTORY_SELECT)
+      .single();
+
+    if (error) throw error;
+
+    return data;
+  } catch (error) {
+    console.error("Error in reduceStock:", error);
+    throw error;
+  }
+};
+
+

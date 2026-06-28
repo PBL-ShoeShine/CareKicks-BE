@@ -1,9 +1,42 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 
-const ORDER_STATUSES = ["pending", "diproses", "selesai"];
-const QUEUE_STATUSES = ["pending", "diproses"];
-const ACTIVITY_STATUSES = ["pending", "diproses", "selesai"];
+const ORDER_STATUSES = [
+  "pending",
+  "menunggu_pembayaran",
+  "menunggu_konfirmasi",
+  "dikonfirmasi",
+  "menunggu_dijemput",
+  "sedang_dijemput",
+  "sudah_dijemput",
+  "washing",
+  "selesai_cuci",
+  "sedang_diantar",
+  "selesai",
+];
+
+const QUEUE_STATUSES = [
+  "dikonfirmasi",
+  "menunggu_dijemput",
+  "sedang_dijemput",
+  "sudah_dijemput",
+  "washing",
+  "selesai_cuci",
+];
+
+const ACTIVITY_STATUSES = [
+  "pending",
+  "menunggu_pembayaran",
+  "menunggu_konfirmasi",
+  "dikonfirmasi",
+  "menunggu_dijemput",
+  "sedang_dijemput",
+  "sudah_dijemput",
+  "washing",
+  "selesai_cuci",
+  "sedang_diantar",
+  "selesai",
+];
 
 exports.getDashboardData = async (authUser, options = {}) => {
   const { status, search, limit } = options;
