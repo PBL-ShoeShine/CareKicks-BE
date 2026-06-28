@@ -6,14 +6,15 @@ const authMiddleware = require('../../core/services/auth.middleware');
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-  },
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 // /api/v1/user/register
 router.post('/register', controller.register);
+router.post('/verify-register-otp', controller.verifyRegisterOtp); // RUTE BARU VERIFIKASI
+router.post('/resend-register-otp', controller.resendRegisterOtp); // RUTE BARU RESEND
 router.post('/login', controller.login);
+
 router.put(
   '/profile/photo',
   authMiddleware,
