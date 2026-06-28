@@ -24,7 +24,7 @@ exports.createOfflineOrder = async (req, res) => {
         return res.status(400).json({
           success: false,
           message:
-            'Format services tidak valid. Gunakan format JSON array, contoh: [{"id_services":1,"price":30000}]',
+            'Format services tidak valid. Gunakan format JSON array, contoh: [{"id_services":1,"price":50000}]',
         });
       }
     }
