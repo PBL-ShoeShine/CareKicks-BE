@@ -103,6 +103,14 @@ exports.createOnlineOrder = async ({
     );
   }
 
+  // Update nomor_hp dari input jika berbeda
+  if (no_hp && no_hp !== customer.nomor_hp) {
+    await supabase
+      .from("customers")
+      .update({ nomor_hp: no_hp })
+      .eq("id_customers", customer.id_customers);
+  }
+
   // Step 3: Verifikasi semua id_services valid dan aktif di toko ini
   const serviceIds = services.map((s) => s.id_services);
   const { data: validServices, error: svcError } = await supabase
@@ -390,10 +398,18 @@ exports.createOnlineOrderFromCart = async ({
     .from("customers")
     .select("id_customers, nama, nomor_hp")
     .eq("id_user", userId)
-    .single();
+    .maybeSingle();
 
   if (custError || !customer) {
-    throw new Error("Data customer tidak ditemukan");
+    throw new Error("Data customer tidak ditemukan. Silakan coba logout dan login kembali.");
+  }
+
+  // Update nomor_hp dari input jika berbeda
+  if (no_hp && no_hp !== customer.nomor_hp) {
+    await supabase
+      .from("customers")
+      .update({ nomor_hp: no_hp })
+      .eq("id_customers", customer.id_customers);
   }
 
   for (const item of cartItems) {
