@@ -176,7 +176,7 @@ exports.login = async ({ email, password }) => {
   const { data, error } = await supabase
     .from("users")
     .select("*")
-    .or(`email.eq.${email},username.eq.${email}`)
+    .eq("email", email)
     .maybeSingle();
 
   if (error || !data) throw new Error("User tidak ditemukan");
