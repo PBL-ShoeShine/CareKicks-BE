@@ -13,6 +13,9 @@ const getDetailOrder = async (orderId, customerId) => {
         alamat_toko,
         lat_toko,
         long_toko
+      ),
+      staff:users!id_staff (
+        nama
       )
     `,
     )
@@ -69,14 +72,46 @@ const getDetailOrder = async (orderId, customerId) => {
   if (timelineError) throw new Error(timelineError.message);
 
   // Normalisasi: ambil nama dari staff → staff_profile → nama
-  const timelineNormalized = (timeline || []).map((item) => ({
-    id_history: item.id_history,
-    status: item.status,
-    keterangan: item.keterangan,
-    changed_by_role: item.changed_by_role,
-    created_at: item.created_at,
-    nama_staff: item.staff?.staff_profile?.nama ?? null,
-  }));
+  const assignedStaffName = order.staff?.nama ?? null;
+
+  const findStaffInGroup = (statusGroup) => {
+    for (const entry of (timeline || [])) {
+      if (statusGroup.includes(entry.status)) {
+        const name = entry.staff?.staff_profile?.nama;
+        if (name) return name;
+      }
+    }
+    return null;
+  };
+
+  const timelineNormalized = (timeline || []).map((item) => {
+    let namaStaff = item.staff?.staff_profile?.nama ?? null;
+
+    if (!namaStaff) {
+      // Layer 1: Workflow stage pair fallback (sedang_dijemput <-> sudah_dijemput, washing <-> selesai_cuci, sedang_diantar <-> selesai)
+      if (["sedang_dijemput", "sudah_dijemput"].includes(item.status)) {
+        namaStaff = findStaffInGroup(["sedang_dijemput", "sudah_dijemput"]);
+      } else if (["washing", "selesai_cuci"].includes(item.status)) {
+        namaStaff = findStaffInGroup(["washing", "selesai_cuci"]);
+      } else if (["sedang_diantar", "selesai"].includes(item.status)) {
+        namaStaff = findStaffInGroup(["sedang_diantar", "selesai"]);
+      }
+
+      // Layer 2: Order assigned staff fallback for "sedang" statuses
+      if (!namaStaff && ["sedang_dijemput", "washing", "sedang_diantar"].includes(item.status)) {
+        namaStaff = assignedStaffName;
+      }
+    }
+
+    return {
+      id_history: item.id_history,
+      status: item.status,
+      keterangan: item.keterangan,
+      changed_by_role: item.changed_by_role,
+      created_at: item.created_at,
+      nama_staff: namaStaff,
+    };
+  });
 
   // Susun data untuk dikirim ke frontend
   return {
