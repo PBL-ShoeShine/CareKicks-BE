@@ -96,12 +96,19 @@ exports.updateTrackingStatus = async (req, res) => {
 			fotoUrl = await trackingService.uploadImage(file);
 		}
 
+		const idStaff =
+			id_staff ||
+			req.user?.id_staff ||
+			req.user?.id_user ||
+			req.user?.id ||
+			null;
+
 		const updatedOrder = await trackingService.updateStatus(id_orders, shopId, {
 			status,
 			keterangan,
 			latitude: latitude ? parseFloat(latitude) : null,
 			longitude: longitude ? parseFloat(longitude) : null,
-			id_staff,
+			id_staff: idStaff,
 			id_detail_orders,
 			foto_type,
 			foto_url: fotoUrl,

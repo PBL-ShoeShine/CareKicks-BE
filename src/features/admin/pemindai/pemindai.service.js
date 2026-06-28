@@ -1,4 +1,5 @@
 const supabase = require("../../../core/config/supabase");
+const { resolveStaffIds } = require("../../../core/services/resolve-staff-id");
 
 // Helper: insert ke order_status_history
 const insertStatusHistory = async (
@@ -142,10 +143,14 @@ exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null) => {
     }
   }
 
+  const resolved = await resolveStaffIds(idStaff);
+  const orderStaffId = resolved.id_user; // For orders.id_staff column
+  const historyStaffId = resolved.id_staff; // For order_status_history.id_staff column
+
   // --- PERBAIKAN: MENYIMPAN ID STAFF KE TABEL ORDERS ---
   const updatePayload = { status_order: normalizedStatus };
-  if (idStaff) {
-    updatePayload.id_staff = idStaff;
+  if (orderStaffId) {
+    updatePayload.id_staff = orderStaffId;
   }
 
   // Update cache status dan id_staff di tabel orders
@@ -174,7 +179,7 @@ exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null) => {
     orderData.id_orders,
     normalizedStatus,
     "staff",
-    idStaff,
+    historyStaffId,
     keteranganMap[normalizedStatus] ?? null,
   );
 
