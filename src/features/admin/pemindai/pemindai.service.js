@@ -2,13 +2,7 @@ const supabase = require("../../../core/config/supabase");
 const { resolveStaffIds } = require("../../../core/services/resolve-staff-id");
 
 // Helper: insert ke order_status_history
-const insertStatusHistory = async (
-  idOrders,
-  status,
-  changedByRole,
-  idStaff = null,
-  keterangan = null,
-) => {
+const insertStatusHistory = async (idOrders, status, changedByRole, idStaff = null, keterangan = null) => {
   const { error } = await supabase.from("order_status_history").insert({
     id_orders: idOrders,
     id_staff: idStaff,
@@ -19,45 +13,27 @@ const insertStatusHistory = async (
   if (error) throw new Error(`Gagal insert history: ${error.message}`);
 };
 
-// Status valid yang boleh di-scan oleh staff via QR
 const STATUS_VALID_SCAN = new Set([
-  "sedang_dijemput",
-  "sudah_dijemput",
-  "washing",
-  "selesai_cuci",
-  "sedang_diantar",
-  "selesai",
+  "sedang_dijemput", "sudah_dijemput", "washing", "selesai_cuci", "sedang_diantar", "selesai",
 ]);
 
 // Fungsi cari data order by QR
-exports.getDetailByQR = async (qrText) => {
+exports.getDetailByQR = async (qrText, idShopsAdmin) => {
   const cleanInput = qrText.trim();
   let targetSearchText = cleanInput;
-
-  console.log("\n[PROSES PARSING BACKEND]:", cleanInput);
 
   if (cleanInput.includes("data=ORD")) {
     const parts = cleanInput.split("data=");
     if (parts.length > 1) {
       targetSearchText = parts[1].trim();
-      console.log("[HASIL EKSTRAKSI URL QR]:", targetSearchText);
     }
   }
 
+  // Gunakan * agar mengambil semua kolom root (termasuk kepemilikan toko) dengan aman
   const { data, error } = await supabase
     .from("orders")
-    .select(
-      `
-      id_orders,
-      kode_order,
-      tgl_order,
-      status_order,
-      metode_order,
-      metode_bayar,
-      metode_pengambilan,
-      alamat_pengantaran,
-      link_qr,
-      id_staff,
+    .select(`
+      *,
       customers (nama, alamat),
       detail_orders (
         merk,
@@ -66,21 +42,27 @@ exports.getDetailByQR = async (qrText) => {
         catatan,
         services (nama_layanan, harga)
       )
-    `,
-    )
+    `)
     .eq("kode_order", targetSearchText);
 
-  if (error) console.log("\n[ALASAN DITOLAK SUPABASE]:", error.message);
-
   if (error || !data || data.length === 0) {
-    const err = new Error(
-      `Data tidak ditemukan untuk input: ${targetSearchText}`,
-    );
+    const err = new Error("Data pesanan tidak ditemukan.");
     err.status = 404;
     throw err;
   }
 
   const orderResult = data[0];
+
+  // 🚨 HARD VALIDATION: Cek kepemilikan toko secara manual di Backend 🚨
+  // Menyesuaikan kalau nama kolom di database kamu id_shops atau id_toko
+  const shopIdFromDB = orderResult.id_shops || orderResult.id_toko;
+  
+  if (shopIdFromDB && shopIdFromDB !== idShopsAdmin) {
+    console.log(`[SECURITY BLOCK]: Admin Toko (ID: ${idShopsAdmin}) mencoba scan QR dari Toko lain (ID: ${shopIdFromDB})`);
+    const err = new Error("Akses Ditolak: Kode QR ini bukan pesanan dari toko Anda!");
+    err.status = 403;
+    throw err;
+  }
 
   // Sinkronisasi alamat
   if (!orderResult.alamat_pengantaran && orderResult.customers) {
@@ -90,35 +72,24 @@ exports.getDetailByQR = async (qrText) => {
     orderResult.customers.alamat = orderResult.alamat_pengantaran;
   }
 
-  console.log("[DATA DIKIRIM KE FLUTTER]:", {
-    kode_order: orderResult.kode_order,
-    status_order: orderResult.status_order,
-    metode_order: orderResult.metode_order,
-    alamat_pengantaran: orderResult.alamat_pengantaran,
-    customer_alamat: orderResult.customers?.alamat ?? "Tidak ada",
-  });
-
   return orderResult;
 };
 
 // Fungsi update status via scan QR oleh staff
-exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null) => {
+exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null, idShopsAdmin) => {
   const cleanKode = kodeOrder.trim();
   const normalizedStatus = newStatus.trim().toLowerCase();
 
-  // Validasi status harus pakai enum baru
   if (!STATUS_VALID_SCAN.has(normalizedStatus)) {
-    const err = new Error(
-      `Status tidak valid. Pilihan: ${[...STATUS_VALID_SCAN].join(", ")}`,
-    );
+    const err = new Error(`Status tidak valid. Pilihan: ${[...STATUS_VALID_SCAN].join(", ")}`);
     err.status = 400;
     throw err;
   }
 
-  // Ambil data order dulu untuk dapat id_orders dan validasi
+  // Ambil data order dulu untuk dapat kepemilikan toko
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
-    .select("id_orders, status_order, metode_order")
+    .select("*")
     .eq("kode_order", cleanKode)
     .single();
 
@@ -128,32 +99,32 @@ exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null) => {
     throw err;
   }
 
-  // Validasi order offline tidak boleh scan status pickup/delivery
+  // 🚨 HARD VALIDATION LINTAS TOKO UNTUK UPDATE 🚨
+  const shopIdFromDB = orderData.id_shops || orderData.id_toko;
+  if (shopIdFromDB && shopIdFromDB !== idShopsAdmin) {
+    const err = new Error("Akses Ditolak: Anda tidak memiliki izin untuk mengupdate pesanan dari toko lain.");
+    err.status = 403;
+    throw err;
+  }
+
+  // Validasi order offline
   if (orderData.metode_order === "offline") {
-    if (
-      ["sedang_dijemput", "sudah_dijemput", "sedang_diantar"].includes(
-        normalizedStatus,
-      )
-    ) {
-      const err = new Error(
-        "Order offline tidak memiliki proses pickup/delivery.",
-      );
+    if (["sedang_dijemput", "sudah_dijemput", "sedang_diantar"].includes(normalizedStatus)) {
+      const err = new Error("Order offline tidak memiliki proses pickup/delivery.");
       err.status = 400;
       throw err;
     }
   }
 
   const resolved = await resolveStaffIds(idStaff);
-  const orderStaffId = resolved.id_user; // For orders.id_staff column
-  const historyStaffId = resolved.id_staff; // For order_status_history.id_staff column
+  const orderStaffId = resolved.id_user; 
+  const historyStaffId = resolved.id_staff; 
 
-  // --- PERBAIKAN: MENYIMPAN ID STAFF KE TABEL ORDERS ---
   const updatePayload = { status_order: normalizedStatus };
   if (orderStaffId) {
     updatePayload.id_staff = orderStaffId;
   }
 
-  // Update cache status dan id_staff di tabel orders
   const { error: updateError } = await supabase
     .from("orders")
     .update(updatePayload)
@@ -165,7 +136,6 @@ exports.updateStatusOrder = async (kodeOrder, newStatus, idStaff = null) => {
     throw err;
   }
 
-  // Insert ke order_status_history
   const keteranganMap = {
     sedang_dijemput: "Staff dalam perjalanan menjemput sepatu",
     sudah_dijemput: "Sepatu berhasil dijemput, dalam perjalanan ke toko",
