@@ -1,5 +1,4 @@
 const supabase = require("../../../core/config/supabase");
-const crypto = require("crypto");
 const shopAccess = require("../../../core/services/shop-access.service");
 
 const generateKodeOrderOffline = async () => {
@@ -7,7 +6,7 @@ const generateKodeOrderOffline = async () => {
   const dateString = date.toISOString().slice(2, 10).replace(/-/g, "");
   const prefix = `CAR-${dateString}-`;
 
-  const { data: lastOrder, error } = await supabase
+  const { data: lastOrder } = await supabase
     .from("orders")
     .select("kode_order")
     .like("kode_order", `${prefix}%`)
@@ -38,9 +37,23 @@ exports.createOfflineOrder = async (inputData) => {
     catatan,
     metode_bayar,
     fotoSebelumFile,
+    authUser,
   } = inputData;
 
   try {
+    // FIX: cari id_staff berdasarkan id_user
+    // Jika yang login admin toko (bukan staff), hasilnya null → aman untuk FK nullable
+    let staffId = null;
+    const { data: staffData } = await supabase
+      .from("staff")
+      .select("id_staff")
+      .eq("id_user", userId)
+      .maybeSingle();
+
+    if (staffData) {
+      staffId = staffData.id_staff;
+    }
+
     // Upload foto sebelum
     let foto_sebelum_url = null;
     if (fotoSebelumFile) {
@@ -61,26 +74,12 @@ exports.createOfflineOrder = async (inputData) => {
       const { data: publicUrlData } = supabase.storage
         .from("services")
         .getPublicUrl(filePath);
-
       foto_sebelum_url = publicUrlData.publicUrl;
     }
 
     const id_shops = await shopAccess.getShopIdForUser(
-      inputData.authUser || { id: userId, id_user: userId },
+      authUser || { id: userId, id_user: userId },
     );
-
-    // FIX: cari id_staff berdasarkan id_user
-    // Jika yang login admin toko (bukan staff), hasilnya null → aman untuk FK nullable
-    let staffId = null;
-    const { data: staffData } = await supabase
-      .from("staff")
-      .select("id_staff")
-      .eq("id_user", userId)
-      .maybeSingle();
-
-    if (staffData) {
-      staffId = staffData.id_staff;
-    }
 
     // Cek atau buat customer
     let customerId;
@@ -246,7 +245,6 @@ exports.getServices = async (authUser) => {
     .order("id_services", { ascending: true });
 
   if (error) throw error;
-
   return data || [];
 };
 

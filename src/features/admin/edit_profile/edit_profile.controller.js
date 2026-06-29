@@ -8,7 +8,7 @@ const { realMailer, dummyMailer } = require('../../../core/config/mailer');
 // HELPER: PENGIRIMAN EMAIL AUTO-PILOT (GMAIL & MAILTRAP)
 // =========================================================================
 const sendVerificationEmail = async (targetEmail, token) => {
-  const verificationUrl = `http://localhost:3000/api/v1/auth/verify-email?token=${token}`;
+  const verificationUrl = `http://localhost:5000/api/v1/auth/verify-email?token=${token}`;
 
   const mailOptions = {
     from: '"CareKicks Admin" <admin@carekicks.com>',
