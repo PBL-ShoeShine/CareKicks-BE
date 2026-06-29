@@ -17,17 +17,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   const originalJson = res.json;
   res.json = function (body) {
-    if (body && typeof body === 'object') {
+    if (body && typeof body === "object") {
       const cleanObject = (obj) => {
         if (!obj) return obj;
         if (Array.isArray(obj)) {
           return obj.map(cleanObject);
         }
-        if (typeof obj === 'object') {
+        if (typeof obj === "object") {
           const cleaned = {};
           for (const key in obj) {
-            if (key === 'nama_layanan' && typeof obj[key] === 'string') {
-              cleaned[key] = obj[key].replace(/^deleted_\d+_/, '');
+            if (key === "nama_layanan" && typeof obj[key] === "string") {
+              cleaned[key] = obj[key].replace(/^deleted_\d+_/, "");
             } else {
               cleaned[key] = cleanObject(obj[key]);
             }
@@ -93,7 +93,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`\nServer CareKicks jalan di IP: http://0.0.0.0:${PORT}`);
   console.log(
-    `📖 Dokumentasi Swagger aktif di: http://172.16.162.23:${PORT}/api-docs`,
+    `📖 Dokumentasi Swagger aktif di: http://172.16.94.136:${PORT}/api-docs`,
   );
   console.log("\n===== DAFTAR RUTE AKTIF =====");
   console.table(

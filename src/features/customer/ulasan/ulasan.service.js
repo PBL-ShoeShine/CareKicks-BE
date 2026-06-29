@@ -28,7 +28,7 @@ exports.getAllUlasan = async (filters = {}) => {
             nama
           )
         )
-      `
+      `,
       )
       .order("created_at", { ascending: false });
 
@@ -51,19 +51,24 @@ exports.getAllUlasan = async (filters = {}) => {
     // Format data to match UI needs DENGAN PROTEKSI ARRAY
     return data.map((item) => {
       let parsedPhotos = [];
-      
+
       // Mengamankan parsing data foto
       if (item.foto_ulasan) {
         if (Array.isArray(item.foto_ulasan)) {
           parsedPhotos = item.foto_ulasan;
-        } else if (typeof item.foto_ulasan === 'string') {
+        } else if (typeof item.foto_ulasan === "string") {
           try {
             parsedPhotos = JSON.parse(item.foto_ulasan);
           } catch (e) {
             // Fallback jika format array native postgres: "{url1,url2}"
-            if (item.foto_ulasan.startsWith('{') && item.foto_ulasan.endsWith('}')) {
+            if (
+              item.foto_ulasan.startsWith("{") &&
+              item.foto_ulasan.endsWith("}")
+            ) {
               const cleaned = item.foto_ulasan.slice(1, -1);
-              parsedPhotos = cleaned ? cleaned.split(',').map(s => s.replace(/"/g, '').trim()) : [];
+              parsedPhotos = cleaned
+                ? cleaned.split(",").map((s) => s.replace(/"/g, "").trim())
+                : [];
             } else {
               parsedPhotos = [item.foto_ulasan];
             }
@@ -82,7 +87,8 @@ exports.getAllUlasan = async (filters = {}) => {
         created_at: item.created_at,
         user: {
           nama: item.customers?.nama || item.customers?.users?.nama || "User",
-          foto: item.customers?.foto || item.customers?.users?.path_gambar || null,
+          foto:
+            item.customers?.foto || item.customers?.users?.path_gambar || null,
         },
       };
     });
@@ -125,13 +131,14 @@ exports.uploadUlasanImages = async (files) => {
 };
 
 /**
- * Create a new review
+ * Create a new review (Support Bulk Insert untuk multi-layanan)
  */
 exports.createUlasan = async (reviewData) => {
+  // PERUBAHAN: id_services diubah menjadi `services` (berupa array ID)
   const {
     id_orders,
     id_shops,
-    id_services,
+    services, // Cth: [16, 17]
     id_customers,
     rating,
     ulasan,
@@ -140,13 +147,17 @@ exports.createUlasan = async (reviewData) => {
 
   try {
     let final_id_shops = id_shops;
+    let dataToInsert = [];
 
-    // 1. If id_orders is provided, validate it
+    // 1. Validasi Jika Ulasan dari sebuah Order
     if (id_orders) {
-      if (!id_services) {
-        throw new Error("id_services wajib diisi jika mengulas dari pesanan");
+      if (!services || !Array.isArray(services) || services.length === 0) {
+        throw new Error(
+          "Array services wajib diisi minimal 1 jika mengulas dari pesanan",
+        );
       }
 
+      // Cek apakah order valid dan milik customer tersebut
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .select("id_orders, id_customer, id_shops")
@@ -155,46 +166,59 @@ exports.createUlasan = async (reviewData) => {
         .single();
 
       if (orderError || !order) {
-        throw new Error("Pesanan tidak ditemukan atau Anda tidak memiliki akses");
-      }
-
-      const { data: detailOrder, error: detailError } = await supabase
-        .from("detail_orders")
-        .select("id_detail_orders")
-        .eq("id_orders", id_orders)
-        .eq("id_services", id_services)
-        .maybeSingle();
-
-      if (!detailOrder) {
-        throw new Error("Layanan tersebut tidak ditemukan di dalam pesanan ini");
+        throw new Error(
+          "Pesanan tidak ditemukan atau Anda tidak memiliki akses",
+        );
       }
 
       final_id_shops = order.id_shops;
 
-      const { data: existing, error: existingError } = await supabase
-        .from("ulasan")
-        .select("id_ulasan")
+      // Cek apakah layanan yang dikirim benar-benar ada di detail_orders
+      const { data: detailOrders, error: detailError } = await supabase
+        .from("detail_orders")
+        .select("id_services")
         .eq("id_orders", id_orders)
-        .eq("id_services", id_services)
-        .maybeSingle();
+        .in("id_services", services);
 
-      if (existing) {
-        throw new Error("Anda sudah memberikan ulasan untuk layanan ini pada pesanan tersebut");
+      if (
+        detailError ||
+        !detailOrders ||
+        detailOrders.length !== services.length
+      ) {
+        throw new Error(
+          "Beberapa layanan tidak ditemukan di dalam pesanan ini",
+        );
       }
+
+      // Siapkan array objek untuk Bulk Insert ke Supabase
+      dataToInsert = services.map((id_service) => ({
+        id_orders: id_orders,
+        id_shops: final_id_shops,
+        id_services: id_service,
+        id_customers: id_customers,
+        rating: parseInt(rating),
+        ulasan: ulasan,
+        foto_ulasan: foto_ulasan || [],
+      }));
     } else {
+      // 2. Validasi Jika Ulasan General / Langsung ke Toko (Tanpa Order)
       if (!final_id_shops) {
         throw new Error("id_shops wajib diisi untuk ulasan toko");
       }
-      
-      if (id_services) {
+
+      let singleServiceId = null;
+      if (services && services.length > 0) {
+        singleServiceId = services[0];
         const { data: serviceCheck } = await supabase
           .from("services")
           .select("id_services")
-          .eq("id_services", id_services)
+          .eq("id_services", singleServiceId)
           .eq("id_shops", final_id_shops)
           .maybeSingle();
-        if (!serviceCheck)
+
+        if (!serviceCheck) {
           throw new Error("Layanan tidak ditemukan di toko ini");
+        }
       }
 
       const { data: shop, error: shopError } = await supabase
@@ -206,24 +230,36 @@ exports.createUlasan = async (reviewData) => {
       if (shopError || !shop) {
         throw new Error("Toko tidak ditemukan");
       }
+
+      // Masukkan sebagai 1 data array
+      dataToInsert = [
+        {
+          id_orders: null,
+          id_shops: final_id_shops,
+          id_services: singleServiceId,
+          id_customers: id_customers,
+          rating: parseInt(rating),
+          ulasan: ulasan,
+          foto_ulasan: foto_ulasan || [],
+        },
+      ];
     }
 
-    // 3. Insert review
+    // 3. Eksekusi Insert ke Supabase
     const { data, error } = await supabase
       .from("ulasan")
-      .insert({
-        id_orders: id_orders || null,
-        id_shops: final_id_shops,
-        id_services: id_services || null,
-        id_customers,
-        rating: parseInt(rating),
-        ulasan,
-        foto_ulasan: foto_ulasan || [],
-      })
-      .select()
-      .single();
+      .insert(dataToInsert)
+      .select(); // PERUBAHAN: Hapus .single() karena data kembaliannya berupa array
 
-    if (error) throw error;
+    // 4. Tangkap Error Duplikat Constraint yang tadi kita buat di SQL
+    if (error) {
+      if (error.code === "23505") {
+        throw new Error(
+          "Anda sudah memberikan ulasan untuk layanan ini pada pesanan tersebut",
+        );
+      }
+      throw error;
+    }
 
     return data;
   } catch (error) {
