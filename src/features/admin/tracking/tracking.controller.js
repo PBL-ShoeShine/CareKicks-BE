@@ -96,9 +96,11 @@ exports.updateTrackingStatus = async (req, res) => {
 			fotoUrl = await trackingService.uploadImage(file);
 		}
 
+		// PENTING: prioritaskan id_staff dari JWT token (pasti milik akun yang login),
+		// baru fallback ke id_staff dari body request (dari Flutter).
 		const idStaff =
-			id_staff ||
-			req.user?.id_staff ||
+			req.user?.id_staff ||   // dari JWT — akun yang sedang login
+			id_staff ||              // dari body Flutter (fallback)
 			req.user?.id_user ||
 			req.user?.id ||
 			null;

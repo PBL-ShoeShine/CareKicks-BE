@@ -38,11 +38,12 @@ exports.changeStatus = async (req, res) => {
     const kode_order = req.body.kode_order;
     const status_baru = req.body.status_baru || req.body.status || req.body.status_order;
 
+    // Prioritaskan id_staff dari JWT (pasti milik akun yang scan),
+    // baru fallback ke id_user jika bukan role staff
     const idStaff = 
-      req.user?.id_user || 
       req.user?.id_staff || 
+      req.user?.id_user || 
       req.user?.id || 
-      req.user?.userId || 
       null;
 
     // Ambil ID Toko milik Admin/Staff
