@@ -41,13 +41,14 @@ exports.createOfflineOrder = async (inputData) => {
   } = inputData;
 
   try {
+    // Upload foto sebelum
     let foto_sebelum_url = null;
     if (fotoSebelumFile) {
       const fileExt = fotoSebelumFile.mimetype.split("/")[1];
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
       const filePath = `services/${fileName}`;
 
-      const { error: uploadError, data: uploadData } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("services")
         .upload(filePath, fotoSebelumFile.buffer, {
           contentType: fotoSebelumFile.mimetype,
@@ -57,7 +58,6 @@ exports.createOfflineOrder = async (inputData) => {
         throw new Error(`File upload failed: ${uploadError.message}`);
       }
 
-      // Get public URL
       const { data: publicUrlData } = supabase.storage
         .from("services")
         .getPublicUrl(filePath);
@@ -69,7 +69,20 @@ exports.createOfflineOrder = async (inputData) => {
       inputData.authUser || { id: userId, id_user: userId },
     );
 
-    // Step 2: Check if customer exists, if not create one
+    // FIX: cari id_staff berdasarkan id_user
+    // Jika yang login admin toko (bukan staff), hasilnya null → aman untuk FK nullable
+    let staffId = null;
+    const { data: staffData } = await supabase
+      .from("staff")
+      .select("id_staff")
+      .eq("id_user", userId)
+      .maybeSingle();
+
+    if (staffData) {
+      staffId = staffData.id_staff;
+    }
+
+    // Cek atau buat customer
     let customerId;
     const { data: existingCustomer } = await supabase
       .from("customers")
@@ -80,7 +93,6 @@ exports.createOfflineOrder = async (inputData) => {
     if (existingCustomer) {
       customerId = existingCustomer.id_customers;
     } else {
-      // Create new customer
       const { data: newCustomer, error: customerError } = await supabase
         .from("customers")
         .insert({
@@ -91,24 +103,20 @@ exports.createOfflineOrder = async (inputData) => {
         })
         .select();
 
-      if (customerError) {
-        throw customerError;
-      }
-
+      if (customerError) throw customerError;
       customerId = newCustomer[0].id_customers;
     }
-
 
     const kode_order = await generateKodeOrderOffline();
     const qr_code = generateQRCode(kode_order);
 
-    // Step 4: Calculate total price from services
+    // Hitung total harga
     let total_harga = 0;
     for (const service of services) {
       total_harga += service.price || 0;
     }
 
-    // Step 5: Create order record
+    // Insert order
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
       .insert({
@@ -127,17 +135,16 @@ exports.createOfflineOrder = async (inputData) => {
         link_qr: qr_code.url,
         total_ongkir: 0,
         status_pembayaran: "paid",
-        // --- PERBAIKAN: MENYIMPAN ID STAFF PEMBUAT ORDER ---
-        id_staff: userId || null, 
+        // FIX: pakai staffId (null jika yang login bukan staff)
+        id_staff: staffId,
       })
       .select();
 
-    if (orderError) {
-      throw orderError;
-    }
+    if (orderError) throw orderError;
 
     const id_orders = orderData[0].id_orders;
 
+    // Insert detail orders
     const detailOrdersInserts = services.map((service) => ({
       id_orders,
       id_services: service.id_services,
@@ -155,48 +162,41 @@ exports.createOfflineOrder = async (inputData) => {
       .from("detail_orders")
       .insert(detailOrdersInserts);
 
-    if (detailError) {
-      throw detailError;
-    }
+    if (detailError) throw detailError;
 
+    // Update saldo toko
     const { data: shopSaldo, error: saldoFetchError } = await supabase
       .from("shops")
       .select("saldo_toko")
       .eq("id_shops", id_shops)
       .single();
 
-    if (saldoFetchError) {
-      throw saldoFetchError;
-    }
+    if (saldoFetchError) throw saldoFetchError;
 
     const saldoSekarang = Number(shopSaldo.saldo_toko || 0);
     const saldoBaru = saldoSekarang + Number(total_harga || 0);
 
     const { error: saldoUpdateError } = await supabase
       .from("shops")
-      .update({
-        saldo_toko: saldoBaru,
-      })
+      .update({ saldo_toko: saldoBaru })
       .eq("id_shops", id_shops);
 
-    if (saldoUpdateError) {
-      throw saldoUpdateError;
-    }
+    if (saldoUpdateError) throw saldoUpdateError;
 
+    // FIX: pakai staffId bukan userId untuk id_staff di order_status_history
     const { error: trackingError } = await supabase
       .from("order_status_history")
       .insert({
         id_orders,
-        id_staff: userId || null, 
+        id_staff: staffId,
         status: "dikonfirmasi",
         keterangan: `Order offline dibuat - ${catatan || ""}`,
         changed_by_role: "admin_toko",
       });
 
-    if (trackingError) {
-      throw trackingError;
-    }
+    if (trackingError) throw trackingError;
 
+    // Notifikasi (non-critical)
     const { error: notifError } = await supabase.from("notification").insert({
       id_user: userId,
       title: "Pesanan Offline Baru",
@@ -209,7 +209,7 @@ exports.createOfflineOrder = async (inputData) => {
 
     if (notifError) {
       console.error("Notification error:", notifError);
-      // Don't throw - notification is secondary
+      // Tidak throw — notifikasi bersifat sekunder
     }
 
     return {
@@ -250,14 +250,8 @@ exports.getServices = async (authUser) => {
   return data || [];
 };
 
-// Generate QR Code (simple implementation - can be enhanced with qr-code library)
 function generateQRCode(kode_order) {
-  // Using a simple QR code service URL
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kode_order)}`;
   const filename = `qr_${kode_order}_${Date.now()}.png`;
-
-  return {
-    url: qrUrl,
-    filename: filename,
-  };
+  return { url: qrUrl, filename };
 }
