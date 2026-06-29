@@ -45,3 +45,13 @@ exports.updateProfilePhoto = async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 };
+
+exports.checkRole = async (req, res) => {
+  try {
+    const idUser = req.user.id_user || req.user.id;
+    const data = await service.checkRole(idUser);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
