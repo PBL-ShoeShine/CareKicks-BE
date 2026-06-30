@@ -7,9 +7,30 @@ const getCustomerId = async (userId) => {
     .from("customers")
     .select("id_customers")
     .eq("id_user", userId)
-    .single();
-  
-  if (error || !data) throw new Error("Customer tidak ditemukan");
+    .maybeSingle();
+
+  if (error) throw new Error("Gagal mengambil data customer: " + error.message);
+
+  // Jika belum ada record customer (user lama sebelum fix), buat otomatis
+  if (!data) {
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("nama, no_hp")
+      .eq("id_user", userId)
+      .single();
+
+    if (userError || !userData) throw new Error("Customer tidak ditemukan");
+
+    const { data: newCust, error: insertError } = await supabase
+      .from("customers")
+      .insert([{ id_user: userId, nama: userData.nama, nomor_hp: userData.no_hp }])
+      .select("id_customers")
+      .single();
+
+    if (insertError) throw new Error("Gagal membuat data customer: " + insertError.message);
+    return newCust.id_customers;
+  }
+
   return data.id_customers;
 };
 

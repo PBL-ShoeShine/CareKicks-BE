@@ -8,7 +8,7 @@ const { realMailer, dummyMailer } = require('../../../core/config/mailer');
 // HELPER: PENGIRIMAN EMAIL AUTO-PILOT (GMAIL & MAILTRAP)
 // =========================================================================
 const sendVerificationEmail = async (targetEmail, token) => {
-  const verificationUrl = `http://localhost:3000/api/v1/auth/verify-email?token=${token}`;
+  const verificationUrl = `http://localhost:5000/api/v1/auth/verify-email?token=${token}`;
 
   const mailOptions = {
     from: '"CareKicks Admin" <admin@carekicks.com>',
@@ -130,6 +130,14 @@ const editProfileController = {
           .update(updateData)
           .eq('id_user', id_user);
         if (updateError) throw updateError;
+      }
+
+      // Sync nama ke staff_profile jika user adalah staff
+      if (nama) {
+        await supabase
+          .from('staff_profile')
+          .update({ nama })
+          .eq('id_user', id_user);
       }
 
       return res.status(200).json({ success: true, message: "Perubahan profil berhasil disimpan." });

@@ -4,7 +4,7 @@ const supabase = require("../../../core/config/supabase");
 const { realMailer, dummyMailer } = require("../../../core/config/mailer");
 
 const sendVerificationEmail = async (targetEmail, token) => {
-  const baseUrl = process.env.API_BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.API_BASE_URL || "http://localhost:5000";
   const verificationUrl = `${baseUrl}/api/v1/auth/verify-email?token=${token}`;
 
   const mailOptions = {

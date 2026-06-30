@@ -10,10 +10,6 @@ function generateQRCode(kodeOrder) {
   return { url, filename };
 }
 
-/**
- * Service untuk menangani konfirmasi pesanan (Alur 5 Tahap)
- */
-
 const ORDER_SELECT = `
   id_orders,
   kode_order,
@@ -54,12 +50,11 @@ const ORDER_SELECT = `
   )
 `;
 
-/**
- * Ambil daftar pesanan yang memerlukan konfirmasi
- * @param {number} id_shops 
- * @param {string} tab - 'pesanan_masuk', 'pembayaran', 'pesanan_baru'
- */
-exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran", metodeOrder) => {
+exports.getOrdersToConfirm = async (
+  id_shops,
+  tab = "pembayaran",
+  metodeOrder,
+) => {
   let query = supabase
     .from("orders")
     .select(ORDER_SELECT)
@@ -67,13 +62,13 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran", metodeOrder) =
     .order("tgl_order", { ascending: false });
 
   if (tab === "pesanan_masuk") {
-    // 1. Pesanan Masuk: Customer baru kirim pesanan
     query = query.eq("status_order", "pending");
   } else if (tab === "pembayaran") {
-    // 2. Pembayaran: Customer sudah upload bukti bayar
-    query = query.eq("status_order", "menunggu_konfirmasi").eq("status_pembayaran", "unpaid");
+    // FIX Bug 3: hanya tampilkan yang menunggu konfirmasi, bukan yang sudah ditolak
+    query = query
+      .eq("status_order", "menunggu_konfirmasi")
+      .eq("status_pembayaran", "unpaid");
   } else if (tab === "pesanan_baru") {
-    // 3. Pesanan Baru: Sudah dikonfirmasi & dibayar, siap dikerjakan
     if (metodeOrder === "offline") {
       query = query.eq("status_order", "dikonfirmasi");
     } else {
@@ -86,31 +81,51 @@ exports.getOrdersToConfirm = async (id_shops, tab = "pembayaran", metodeOrder) =
   }
 
   const { data, error } = await query;
-
   if (error) throw new Error(error.message);
-
   return data || [];
 };
 
 /**
- * Konfirmasi Pembayaran (Tahap 2 -> 3)
- * @param {number} id_orders 
- * @param {number} id_shops 
- * @param {object} data - { action: 'approve' | 'reject', reason?: string, id_staff?: number }
+ * Helper untuk insert history status order
  */
-exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff }) => {
-  // Fetch current order info to prevent double-crediting and read payment details
+exports.insertStatusHistory = async (
+  id_orders,
+  status,
+  keterangan,
+  id_staff = null,
+) => {
+  const { error } = await supabase.from("order_status_history").insert({
+    id_orders,
+    status,
+    keterangan,
+    id_staff,
+    changed_by_role: "admin_toko",
+  });
+  if (error) console.error("Gagal simpan history status:", error.message);
+};
+
+/**
+ * Konfirmasi Pembayaran (Tahap 2 -> 3)
+ */
+exports.confirmPayment = async (
+  id_orders,
+  id_shops,
+  { action, reason, id_staff },
+) => {
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select(`
+    .select(
+      `
       id_orders,
       status_pembayaran,
       total_ongkir,
       metode_order,
+      kode_order,
       detail_orders (
         total_harga
       )
-    `)
+    `,
+    )
     .eq("id_orders", id_orders)
     .eq("id_shops", id_shops)
     .single();
@@ -118,7 +133,10 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
   if (orderError) throw new Error(orderError.message);
 
   const statusPembayaran = action === "approve" ? "paid" : "rejected";
-  const statusOrder = action === "approve" ? "menunggu_dijemput" : "menunggu_pembayaran";
+  // FIX Bug 5: jika ditolak, kembali ke menunggu_pembayaran (bukan dibatalkan)
+  // sehingga customer bisa upload ulang bukti bayar
+  const statusOrder =
+    action === "approve" ? "menunggu_dijemput" : "menunggu_pembayaran";
 
   const updateData = {
     status_pembayaran: statusPembayaran,
@@ -128,8 +146,7 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
   if (action === "reject" && reason) {
     updateData.alasan_tolak_pembayaran = reason;
   }
-  
-  // Masukkan ID Staff yang menyetujui pembayaran
+
   if (id_staff) {
     updateData.id_staff = id_staff;
   }
@@ -139,14 +156,21 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
     .update(updateData)
     .eq("id_orders", id_orders)
     .eq("id_shops", id_shops)
-    .select(ORDER_SELECT) // <--- PERBAIKAN DI SINI: MENGGUNAKAN ORDER_SELECT
+    .select(ORDER_SELECT)
     .single();
 
   if (error) throw new Error(error.message);
 
-  // If approved and order was online and not already paid, update the shop's balance
-  if (action === "approve" && order.metode_order === "online" && order.status_pembayaran !== "paid") {
-    const serviceTotal = (order.detail_orders || []).reduce((sum, item) => sum + Number(item.total_harga || 0), 0);
+  // Update saldo toko jika approve
+  if (
+    action === "approve" &&
+    order.metode_order === "online" &&
+    order.status_pembayaran !== "paid"
+  ) {
+    const serviceTotal = (order.detail_orders || []).reduce(
+      (sum, item) => sum + Number(item.total_harga || 0),
+      0,
+    );
     const ongkirTotal = Number(order.total_ongkir || 0);
     const addAmount = serviceTotal + ongkirTotal;
 
@@ -156,36 +180,31 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
       .eq("id_shops", id_shops)
       .single();
 
-    if (saldoFetchError) {
-      throw saldoFetchError;
-    }
+    if (saldoFetchError) throw saldoFetchError;
 
-    const saldoSekarang = Number(shopSaldo.saldo_toko || 0);
-    const saldoBaru = saldoSekarang + addAmount;
-
+    const saldoBaru = Number(shopSaldo.saldo_toko || 0) + addAmount;
     const { error: saldoUpdateError } = await supabase
       .from("shops")
-      .update({
-        saldo_toko: saldoBaru,
-      })
+      .update({ saldo_toko: saldoBaru })
       .eq("id_shops", id_shops);
 
-    if (saldoUpdateError) {
-      throw saldoUpdateError;
-    }
+    if (saldoUpdateError) throw saldoUpdateError;
   }
 
-  // Simpan history dengan ID Staff
-  await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`, id_staff);
-  // Generate QR code saat payment dikonfirmasi (online order masuk ke Pesanan Baru)
+  // FIX Bug 5: hapus double insert — hanya insert SEKALI dengan id_staff
+  await this.insertStatusHistory(
+    id_orders,
+    statusOrder,
+    `Pembayaran ${action === "approve" ? "diterima" : "ditolak"}. ${reason || ""}`,
+    id_staff, // selalu sertakan id_staff
+  );
+
+  // Generate QR saat approve online order
   if (action === "approve" && order.metode_order === "online") {
     const qr = generateQRCode(data.kode_order);
     const { error: qrError } = await supabase
       .from("orders")
-      .update({
-        qr_image: qr.filename,
-        link_qr: qr.url,
-      })
+      .update({ qr_image: qr.filename, link_qr: qr.url })
       .eq("id_orders", id_orders);
 
     if (qrError) {
@@ -193,18 +212,24 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
     }
   }
 
-  // Simpan history
-  await this.insertStatusHistory(id_orders, statusOrder, `Pembayaran ${action === 'approve' ? 'diterima' : 'ditolak'}. ${reason || ''}`);
+  // Notifikasi ke customer
+  const customerUserId = Array.isArray(data?.customers)
+    ? data.customers[0]?.id_user
+    : data?.customers?.id_user;
 
-  // Kirim Notifikasi ke Customer
-  const customerUserId = Array.isArray(data?.customers) ? data.customers[0]?.id_user : data?.customers?.id_user;
   if (customerUserId) {
-    const title = action === 'approve' ? 'Pembayaran Berhasil' : 'Pembayaran Ditolak';
-    const body = action === 'approve' 
-      ? `Pembayaran untuk pesanan ${data.kode_order} telah kami terima. Pesanan Anda kini masuk ke antrean utama.`
-      : `Pembayaran untuk pesanan ${data.kode_order} ditolak. Alasan: ${reason || '-'}`;
-    
-    await pushNotification.sendToUser(customerUserId, { title, body }, { orderId: id_orders });
+    const title =
+      action === "approve" ? "Pembayaran Berhasil" : "Pembayaran Ditolak";
+    const body =
+      action === "approve"
+        ? `Pembayaran untuk pesanan ${data.kode_order} telah kami terima. Pesanan Anda kini masuk ke antrean utama.`
+        : `Pembayaran untuk pesanan ${data.kode_order} ditolak. Alasan: ${reason || "-"}`;
+
+    await pushNotification.sendToUser(
+      customerUserId,
+      { title, body },
+      { orderId: id_orders },
+    );
   }
 
   return data;
@@ -212,21 +237,22 @@ exports.confirmPayment = async (id_orders, id_shops, { action, reason, id_staff 
 
 /**
  * Konfirmasi Pesanan Masuk (Tahap 1 -> 2)
- * @param {number} id_orders 
- * @param {number} id_shops 
- * @param {object} data - { action: 'approve' | 'reject', reason?: string, id_staff?: number }
  */
-exports.confirmOrder = async (id_orders, id_shops, { action, reason, id_staff }) => {
-  // Jika disetujui, pindah ke status 'menunggu_pembayaran' agar customer bisa bayar
-  const statusOrder = action === "approve" ? "menunggu_pembayaran" : "dibatalkan";
-  
+exports.confirmOrder = async (
+  id_orders,
+  id_shops,
+  { action, reason, id_staff },
+) => {
+  // FIX Bug 5: jika ditolak gunakan 'dibatalkan', bukan status lain
+  const statusOrder =
+    action === "approve" ? "menunggu_pembayaran" : "dibatalkan";
+
   const updateData = { status_order: statusOrder };
-  
+
   if (action === "reject" && reason) {
-    updateData.alasan_pembatalan = reason;
+    updateData.alasan_tolak_pembayaran = reason;
   }
 
-  // Masukkan ID Staff yang menyetujui pesanan awal
   if (id_staff) {
     updateData.id_staff = id_staff;
   }
@@ -236,39 +262,38 @@ exports.confirmOrder = async (id_orders, id_shops, { action, reason, id_staff })
     .update(updateData)
     .eq("id_orders", id_orders)
     .eq("id_shops", id_shops)
-    .select(ORDER_SELECT) // <--- PERBAIKAN DI SINI: MENGGUNAKAN ORDER_SELECT
+    .select(ORDER_SELECT)
     .single();
 
   if (error) throw new Error(error.message);
 
-  // Simpan history dengan ID Staff
-  await this.insertStatusHistory(id_orders, statusOrder, `Pesanan ${action === 'approve' ? 'disetujui (menunggu pembayaran)' : 'ditolak'}. ${reason || ''}`, id_staff);
+  // FIX Bug 5: sertakan id_staff di history
+  await this.insertStatusHistory(
+    id_orders,
+    statusOrder,
+    `Pesanan ${action === "approve" ? "disetujui (menunggu pembayaran)" : "ditolak"}. ${reason || ""}`,
+    id_staff,
+  );
 
-  // Kirim Notifikasi ke Customer
-  const customerUserId = Array.isArray(data?.customers) ? data.customers[0]?.id_user : data?.customers?.id_user;
+  // Notifikasi ke customer
+  const customerUserId = Array.isArray(data?.customers)
+    ? data.customers[0]?.id_user
+    : data?.customers?.id_user;
+
   if (customerUserId) {
-    const title = action === 'approve' ? 'Pesanan Disetujui' : 'Pesanan Dibatalkan';
-    const body = action === 'approve'
-      ? `Pesanan ${data.kode_order} telah disetujui. Silakan unggah bukti pembayaran agar dapat kami proses.`
-      : `Pesanan ${data.kode_order} telah dibatalkan oleh toko. Alasan: ${reason || '-'}`;
+    const title =
+      action === "approve" ? "Pesanan Disetujui" : "Pesanan Dibatalkan";
+    const body =
+      action === "approve"
+        ? `Pesanan ${data.kode_order} telah disetujui. Silakan unggah bukti pembayaran agar dapat kami proses.`
+        : `Pesanan ${data.kode_order} telah dibatalkan oleh toko. Alasan: ${reason || "-"}`;
 
-    await pushNotification.sendToUser(customerUserId, { title, body }, { orderId: id_orders });
+    await pushNotification.sendToUser(
+      customerUserId,
+      { title, body },
+      { orderId: id_orders },
+    );
   }
 
   return data;
-};
-
-/**
- * Helper untuk insert history status order
- */
-exports.insertStatusHistory = async (id_orders, status, keterangan, id_staff = null) => {
-  const { error } = await supabase.from("order_status_history").insert({
-    id_orders,
-    status,
-    keterangan,
-    id_staff,
-    changed_by_role: "admin_toko",
-  });
-
-  if (error) console.error("Gagal simpan history status:", error.message);
 };
