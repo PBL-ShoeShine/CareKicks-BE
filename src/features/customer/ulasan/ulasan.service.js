@@ -20,6 +20,9 @@ exports.getAllUlasan = async (filters = {}) => {
         ulasan,
         foto_ulasan,
         created_at,
+        services (
+          nama_layanan
+        ),
         customers (
           nama,
           foto,
@@ -81,6 +84,7 @@ exports.getAllUlasan = async (filters = {}) => {
         id_orders: item.id_orders,
         id_shops: item.id_shops,
         id_services: item.id_services,
+        nama_layanan: item.services?.nama_layanan || null,
         rating: item.rating,
         ulasan: item.ulasan,
         foto_ulasan: parsedPhotos,

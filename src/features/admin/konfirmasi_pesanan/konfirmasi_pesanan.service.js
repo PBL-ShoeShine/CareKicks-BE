@@ -250,7 +250,7 @@ exports.confirmOrder = async (
   const updateData = { status_order: statusOrder };
 
   if (action === "reject" && reason) {
-    updateData.alasan_pembatalan = reason;
+    updateData.alasan_tolak_pembayaran = reason;
   }
 
   if (id_staff) {
