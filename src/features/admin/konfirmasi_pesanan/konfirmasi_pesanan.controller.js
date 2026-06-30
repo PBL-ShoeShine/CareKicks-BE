@@ -36,11 +36,9 @@ exports.confirmPayment = async (req, res) => {
       });
     }
 
-    // FIX Bug 5: resolve id_staff dari user yang login
-    const anyId =
-      req.user?.id_user || req.user?.id_staff || req.user?.id || null;
-    const resolved = await resolveStaffIds(anyId);
-    const id_staff = resolved.id_staff; // null jika admin toko
+    // FIX: ambil id_user dari JWT saja, pass id_shops agar tidak nyasar ke staff toko lain
+    const resolved = await resolveStaffIds(req.user?.id_user, id_shops);
+    const id_staff = resolved.id_staff; // null jika admin toko (tidak ada di tabel staff)
 
     const updatedOrder = await konfirmasiService.confirmPayment(
       id_orders,
@@ -71,11 +69,9 @@ exports.confirmOrder = async (req, res) => {
       });
     }
 
-    // FIX Bug 5: resolve id_staff dari user yang login
-    const anyId =
-      req.user?.id_user || req.user?.id_staff || req.user?.id || null;
-    const resolved = await resolveStaffIds(anyId);
-    const id_staff = resolved.id_staff; // null jika admin toko
+    // FIX: ambil id_user dari JWT saja, pass id_shops agar tidak nyasar ke staff toko lain
+    const resolved = await resolveStaffIds(req.user?.id_user, id_shops);
+    const id_staff = resolved.id_staff; // null jika admin toko (tidak ada di tabel staff)
 
     const updatedOrder = await konfirmasiService.confirmOrder(
       id_orders,

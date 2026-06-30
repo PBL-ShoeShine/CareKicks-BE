@@ -34,7 +34,8 @@ const normalizeStatus = (value) =>
 const isValidFlowTransition = (currentStatus, nextStatus, flow) => {
   if (flow === WASH_FLOW) {
     if (
-      (currentStatus === "sudah_dijemput" || currentStatus === "dikonfirmasi") &&
+      (currentStatus === "sudah_dijemput" ||
+        currentStatus === "dikonfirmasi") &&
       nextStatus === "washing"
     ) {
       return true;
@@ -86,7 +87,6 @@ const insertGpsLog = async (idOrders, idStaff, status, latitude, longitude) => {
 };
 
 exports.getAllTracking = async (shopId, search = "") => {
-  // Tracking hanya tampilkan order yang sedang dalam proses logistik
   let query = supabase
     .from("orders")
     .select(
@@ -129,10 +129,7 @@ exports.getTrackingDetail = async (orderId, shopId) => {
       *,
       customers (id_user, nama, nomor_hp, alamat, latitude, longitude),
       detail_orders (*, services (*)),
-      shops (lat_toko, long_toko),
-      staff:users!id_staff (
-        nama
-      )
+      shops (lat_toko, long_toko)
     `,
     )
     .eq("id_orders", orderId)
@@ -185,10 +182,14 @@ exports.getTrackingDetail = async (orderId, shopId) => {
 
   if (gpsError) throw gpsError;
 
-  const assignedStaffName = order.staff?.nama ?? null;
+  // FIX: Hapus assignedStaffName dari orders.id_staff — ini sumber utama "Rina nempel".
+  // Nama staff hanya boleh diambil dari order_status_history, bukan dari field stale di orders.
 
+  // Layer 1 fallback: kalau satu aksi dalam satu workflow group ada nama staffnya,
+  // pakai nama yang sama untuk pasangannya (misal sedang_dijemput dan sudah_dijemput
+  // harusnya orang yang sama karena satu proses pickup).
   const findStaffInGroup = (statusGroup) => {
-    for (const entry of (timeline || [])) {
+    for (const entry of timeline || []) {
       if (statusGroup.includes(entry.status)) {
         const name = entry.staff?.staff_profile?.nama;
         if (name) return name;
@@ -198,10 +199,13 @@ exports.getTrackingDetail = async (orderId, shopId) => {
   };
 
   const timelineNormalized = (timeline || []).map((item) => {
+    // Sumber utama: nama langsung dari order_status_history → staff → staff_profile
     let namaStaff = item.staff?.staff_profile?.nama ?? null;
 
+    // Layer 1: Kalau nama tidak ada di history item ini, coba cari dari
+    // pasangan status dalam workflow yang sama (masih satu orang yang mengerjakan).
+    // Ini aman karena scope-nya terbatas per workflow group, bukan fallback ke orders.
     if (!namaStaff) {
-      // Layer 1: Workflow stage pair fallback (sedang_dijemput <-> sudah_dijemput, washing <-> selesai_cuci, sedang_diantar <-> selesai)
       if (["sedang_dijemput", "sudah_dijemput"].includes(item.status)) {
         namaStaff = findStaffInGroup(["sedang_dijemput", "sudah_dijemput"]);
       } else if (["washing", "selesai_cuci"].includes(item.status)) {
@@ -209,12 +213,10 @@ exports.getTrackingDetail = async (orderId, shopId) => {
       } else if (["sedang_diantar", "selesai"].includes(item.status)) {
         namaStaff = findStaffInGroup(["sedang_diantar", "selesai"]);
       }
-
-      // Layer 2: Order assigned staff fallback for "sedang" statuses
-      if (!namaStaff && ["sedang_dijemput", "washing", "sedang_diantar"].includes(item.status)) {
-        namaStaff = assignedStaffName;
-      }
     }
+
+    // TIDAK ADA Layer 2 (fallback ke assignedStaffName dari orders.id_staff).
+    // Layer 2 adalah sumber utama bug "Rina nempel" — dihapus permanen.
 
     return {
       id_history: item.id_history,
@@ -222,7 +224,7 @@ exports.getTrackingDetail = async (orderId, shopId) => {
       keterangan: item.keterangan,
       changed_by_role: item.changed_by_role,
       created_at: item.created_at,
-      nama_staff: namaStaff,
+      nama_staff: namaStaff, // null kalau memang tidak ada — lebih jujur daripada salah
     };
   });
 
@@ -251,7 +253,6 @@ exports.getLatestLocation = async (orderId, shopId) => {
 
   if (orderError) throw orderError;
 
-  // Ambil GPS terbaru dari tracking_logs
   const { data: latestLog } = await supabase
     .from("tracking_logs")
     .select("*")
@@ -280,7 +281,6 @@ exports.updateLocation = async (orderId, shopId, payload) => {
 
   if (orderError) throw orderError;
 
-  // Hanya insert GPS log, tidak ubah status
   await insertGpsLog(
     orderId,
     id_staff,
@@ -292,14 +292,14 @@ exports.updateLocation = async (orderId, shopId, payload) => {
   return { success: true };
 };
 
-// Update status via scan QR oleh staff
+// Update status via tombol/scan QR oleh admin atau staff
 exports.updateStatus = async (orderId, shopId, payload) => {
   const {
     status,
     keterangan,
     latitude,
     longitude,
-    id_staff,
+    id_staff, // FIX: ini sekarang selalu id_user dari JWT (sudah dibenerin di controller)
     id_detail_orders,
     foto_type,
     is_validation,
@@ -307,14 +307,12 @@ exports.updateStatus = async (orderId, shopId, payload) => {
 
   const normalizedStatus = normalizeStatus(status);
 
-  // Validasi status hanya boleh yang valid untuk staff
   if (!STATUS_VALID_STAFF.has(normalizedStatus)) {
     throw new Error(
       `Status tidak valid untuk staff. Pilihan: ${[...STATUS_VALID_STAFF].join(", ")}`,
     );
   }
 
-  // Ambil data order saat ini
   const { data: orderInfo, error: orderInfoError } = await supabase
     .from("orders")
     .select("status_order, metode_order")
@@ -327,13 +325,11 @@ exports.updateStatus = async (orderId, shopId, payload) => {
   const currentStatus = normalizeStatus(orderInfo.status_order);
   const metodeOrder = normalizeStatus(orderInfo.metode_order || "offline");
 
-  // Validasi flow transisi
   const allFlows = [PICKUP_FLOW, WASH_FLOW, DELIVERY_FLOW];
   const isValidTransition = allFlows.some((flow) =>
     isValidFlowTransition(currentStatus, normalizedStatus, flow),
   );
 
-  // Khusus offline: tidak boleh ada status pickup & delivery
   if (metodeOrder === "offline") {
     if (
       ["sedang_dijemput", "sudah_dijemput", "sedang_diantar"].includes(
@@ -350,11 +346,12 @@ exports.updateStatus = async (orderId, shopId, payload) => {
     );
   }
 
-  const resolved = await resolveStaffIds(id_staff);
-  const orderStaffId = resolved.id_user; // For orders.id_staff column
-  const historyStaffId = resolved.id_staff; // For order_status_history.id_staff column
+  // FIX: resolveStaffIds sekarang menerima id_shops agar tidak nyasar ke staff toko lain.
+  // id_staff di sini sudah berupa id_user dari JWT (bukan dari body request Flutter).
+  const resolved = await resolveStaffIds(id_staff, shopId);
+  const orderStaffId = resolved.id_user; // untuk orders.id_staff
+  const historyStaffId = resolved.id_staff; // untuk order_status_history.id_staff
 
-  // Update cache status di tabel orders
   const orderUpdateData = { status_order: normalizedStatus };
   if (orderStaffId) {
     orderUpdateData.id_staff = orderStaffId;
@@ -374,7 +371,6 @@ exports.updateStatus = async (orderId, shopId, payload) => {
 
   if (updateError) throw updateError;
 
-  // Insert milestone ke order_status_history
   await insertStatusHistory(
     orderId,
     normalizedStatus,
@@ -383,7 +379,6 @@ exports.updateStatus = async (orderId, shopId, payload) => {
     keterangan,
   );
 
-  // Kalau status butuh GPS, insert juga ke tracking_logs
   if (STATUS_GPS.has(normalizedStatus) && latitude && longitude) {
     await insertGpsLog(
       orderId,
@@ -394,7 +389,6 @@ exports.updateStatus = async (orderId, shopId, payload) => {
     );
   }
 
-  // Update foto sebelum/sesudah di detail_orders jika ada
   if (id_detail_orders && payload.foto_url && !is_validation) {
     const updateObj = {};
     if (foto_type === "sebelum") updateObj.foto_sebelum = payload.foto_url;

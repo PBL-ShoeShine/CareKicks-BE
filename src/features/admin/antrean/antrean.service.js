@@ -274,8 +274,8 @@ exports.getAntreanById = async (authUser, idOrder) => {
 
 exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
-  
-  const resolved = await resolveStaffIds(authUser?.id_staff || authUser?.id_user);
+
+  const resolved = await resolveStaffIds(authUser?.id_user, idShops);
   const orderStaffId = resolved.id_user; // For orders.id_staff column
   const historyStaffId = resolved.id_staff; // For order_status_history.id_staff column
 
@@ -287,14 +287,16 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
 
   const { data: currentOrder, error: currentOrderError } = await supabase
     .from("orders")
-    .select(`
+    .select(
+      `
       status_pembayaran,
       metode_order,
       total_ongkir,
       detail_orders (
         total_harga
       )
-    `)
+    `,
+    )
     .eq("id_orders", idOrder)
     .eq("id_shops", idShops)
     .single();
@@ -326,8 +328,15 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   if (error) throw new Error(error.message);
   let data = updatedData;
 
-  if (status === "dikonfirmasi" && currentOrder.metode_order === "online" && currentOrder.status_pembayaran !== "paid") {
-    const serviceTotal = (currentOrder.detail_orders || []).reduce((sum, item) => sum + Number(item.total_harga || 0), 0);
+  if (
+    status === "dikonfirmasi" &&
+    currentOrder.metode_order === "online" &&
+    currentOrder.status_pembayaran !== "paid"
+  ) {
+    const serviceTotal = (currentOrder.detail_orders || []).reduce(
+      (sum, item) => sum + Number(item.total_harga || 0),
+      0,
+    );
     const ongkirTotal = Number(currentOrder.total_ongkir || 0);
     const addAmount = serviceTotal + ongkirTotal;
 
@@ -357,7 +366,13 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   }
 
   // --- PERBAIKAN: Menyertakan ID Staff ke riwayat history ---
-  await insertStatusHistory(idOrder, status, "admin_toko", historyStaffId, keterangan);
+  await insertStatusHistory(
+    idOrder,
+    status,
+    "admin_toko",
+    historyStaffId,
+    keterangan,
+  );
 
   if (status === "menunggu_pembayaran") {
     await notifyCustomerPaymentStatus(data, {

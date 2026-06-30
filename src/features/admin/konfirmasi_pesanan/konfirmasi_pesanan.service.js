@@ -1,9 +1,7 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
 const pushNotification = require("../../../core/services/push-notification.service");
-const crypto = require("crypto");
 
-// Generate QR code URL
 function generateQRCode(kodeOrder) {
   const url = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(kodeOrder)}`;
   const filename = `qr_${kodeOrder}_${Date.now()}.png`;
@@ -64,7 +62,6 @@ exports.getOrdersToConfirm = async (
   if (tab === "pesanan_masuk") {
     query = query.eq("status_order", "pending");
   } else if (tab === "pembayaran") {
-    // FIX Bug 3: hanya tampilkan yang menunggu konfirmasi, bukan yang sudah ditolak
     query = query
       .eq("status_order", "menunggu_konfirmasi")
       .eq("status_pembayaran", "unpaid");
@@ -85,9 +82,8 @@ exports.getOrdersToConfirm = async (
   return data || [];
 };
 
-/**
- * Helper untuk insert history status order
- */
+// Helper insert history — tidak tampilkan id_staff untuk aksi acc order & acc pembayaran
+// sesuai keputusan: nama admin/staff tidak perlu muncul di riwayat customer untuk aksi ini
 exports.insertStatusHistory = async (
   id_orders,
   status,
@@ -104,9 +100,6 @@ exports.insertStatusHistory = async (
   if (error) console.error("Gagal simpan history status:", error.message);
 };
 
-/**
- * Konfirmasi Pembayaran (Tahap 2 -> 3)
- */
 exports.confirmPayment = async (
   id_orders,
   id_shops,
@@ -133,8 +126,6 @@ exports.confirmPayment = async (
   if (orderError) throw new Error(orderError.message);
 
   const statusPembayaran = action === "approve" ? "paid" : "rejected";
-  // FIX Bug 5: jika ditolak, kembali ke menunggu_pembayaran (bukan dibatalkan)
-  // sehingga customer bisa upload ulang bukti bayar
   const statusOrder =
     action === "approve" ? "menunggu_dijemput" : "menunggu_pembayaran";
 
@@ -147,6 +138,7 @@ exports.confirmPayment = async (
     updateData.alasan_tolak_pembayaran = reason;
   }
 
+  // FIX: hanya set id_staff di orders kalau memang ada (staff, bukan admin toko)
   if (id_staff) {
     updateData.id_staff = id_staff;
   }
@@ -191,12 +183,12 @@ exports.confirmPayment = async (
     if (saldoUpdateError) throw saldoUpdateError;
   }
 
-  // FIX Bug 5: hapus double insert — hanya insert SEKALI dengan id_staff
-  await this.insertStatusHistory(
+  // Catat history — id_staff null untuk admin toko (sesuai keputusan: tidak tampil di riwayat customer)
+  await exports.insertStatusHistory(
     id_orders,
     statusOrder,
     `Pembayaran ${action === "approve" ? "diterima" : "ditolak"}. ${reason || ""}`,
-    id_staff, // selalu sertakan id_staff
+    id_staff,
   );
 
   // Generate QR saat approve online order
@@ -235,15 +227,11 @@ exports.confirmPayment = async (
   return data;
 };
 
-/**
- * Konfirmasi Pesanan Masuk (Tahap 1 -> 2)
- */
 exports.confirmOrder = async (
   id_orders,
   id_shops,
   { action, reason, id_staff },
 ) => {
-  // FIX Bug 5: jika ditolak gunakan 'dibatalkan', bukan status lain
   const statusOrder =
     action === "approve" ? "menunggu_pembayaran" : "dibatalkan";
 
@@ -253,6 +241,7 @@ exports.confirmOrder = async (
     updateData.alasan_pembatalan = reason;
   }
 
+  // FIX: hanya set id_staff di orders kalau memang ada (staff, bukan admin toko)
   if (id_staff) {
     updateData.id_staff = id_staff;
   }
@@ -267,8 +256,8 @@ exports.confirmOrder = async (
 
   if (error) throw new Error(error.message);
 
-  // FIX Bug 5: sertakan id_staff di history
-  await this.insertStatusHistory(
+  // Catat history — id_staff null untuk admin toko (sesuai keputusan: tidak tampil di riwayat customer)
+  await exports.insertStatusHistory(
     id_orders,
     statusOrder,
     `Pesanan ${action === "approve" ? "disetujui (menunggu pembayaran)" : "ditolak"}. ${reason || ""}`,
