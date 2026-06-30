@@ -76,7 +76,7 @@ class StaffService {
           email,
           no_hp: no_hp.trim(),
           id_shops: idShops,
-          status: payload.status || "AKTIF",
+          status: "AKTIF",
         })
         .select("id_staff_profile, nama, email, no_hp, id_shops, status")
         .single();
@@ -148,7 +148,7 @@ class StaffService {
     const userUpdate = {};
 
     // REVISI: Hapus "role" dari array field update
-    ["nama", "email", "no_hp", "status"].forEach((field) => {
+    ["nama", "email", "no_hp"].forEach((field) => {
       if (updateData[field] !== undefined)
         profileUpdate[field] = updateData[field];
     });

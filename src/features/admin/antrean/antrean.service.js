@@ -1,5 +1,6 @@
 const supabase = require("../../../core/config/supabase");
 const shopAccess = require("../../../core/services/shop-access.service");
+const { resolveStaffIds } = require("../../../core/services/resolve-staff-id");
 const pushNotification = require("../../../core/services/push-notification.service");
 const crypto = require("crypto");
 
@@ -26,7 +27,8 @@ const ANTREAN_SELECT = `
   staff:users!id_staff(nama),
   customers (
     id_user,
-    nama
+    nama,
+    nomor_hp
   ),
   detail_orders (
     id_detail_orders,
@@ -41,11 +43,23 @@ const ANTREAN_SELECT = `
       id_services,
       nama_layanan
     )
+  ),
+  order_status_history (
+    id_history,
+    status,
+    keterangan,
+    changed_by_role,
+    created_at,
+    staff (
+      id_staff,
+      staff_profile (nama)
+    )
   )
 `;
 
 // Mapping tab antrean ke status enum
 const TAB_STATUS = {
+  pesanan_masuk: ["pending"],
   pembayaran: ["menunggu_konfirmasi"],
   pesanan_baru: [
     "dikonfirmasi",
@@ -261,8 +275,9 @@ exports.getAntreanById = async (authUser, idOrder) => {
 exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   const idShops = await shopAccess.getShopIdForUser(authUser);
   
-  // --- PERBAIKAN: Menangkap ID Staff dari authUser ---
-  const currentStaffId = authUser?.id_user || authUser?.id_staff || null;
+  const resolved = await resolveStaffIds(authUser?.id_staff || authUser?.id_user);
+  const orderStaffId = resolved.id_user; // For orders.id_staff column
+  const historyStaffId = resolved.id_staff; // For order_status_history.id_staff column
 
   if (!STATUS_VALID_ADMIN.includes(status)) {
     throw new Error(
@@ -297,8 +312,8 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   }
 
   // --- PERBAIKAN: Memasukkan ID Staff ke dalam payload update tabel orders ---
-  if (currentStaffId) {
-    updatePayload.id_staff = currentStaffId;
+  if (orderStaffId) {
+    updatePayload.id_staff = orderStaffId;
   }
 
   const { data: updatedData, error } = await supabase
@@ -342,7 +357,7 @@ exports.updateStatus = async (authUser, idOrder, status, keterangan = null) => {
   }
 
   // --- PERBAIKAN: Menyertakan ID Staff ke riwayat history ---
-  await insertStatusHistory(idOrder, status, "admin_toko", currentStaffId, keterangan);
+  await insertStatusHistory(idOrder, status, "admin_toko", historyStaffId, keterangan);
 
   if (status === "menunggu_pembayaran") {
     await notifyCustomerPaymentStatus(data, {

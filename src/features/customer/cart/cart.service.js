@@ -6,7 +6,7 @@ const getCart = async (id_customers) => {
     .select(`
       id_cart,
       status_keranjang,
-      shops:id_shops ( id_shops, nm_toko, foto_toko, lat_toko, long_toko ),
+      shops:id_shops ( id_shops, nm_toko, foto_toko, lat_toko, long_toko, jarak_gratis_km, tarif_per_km, jarak_maksimal_km, tarif_per_km_luar_radius ),
       cart_item (
         id_cart_item,
         id_services,

@@ -3,20 +3,20 @@ const supabase = require("../../../core/config/supabase");
 
 const getRiwayatHandler = async (req, res) => {
   try {
-    const userId = req.user.id; // ini id_user
+    const userId = req.user.id;
     const { status, search } = req.query;
 
-    // lookup id_customers dari id_user
     const { data: customer, error: customerError } = await supabase
       .from("customers")
       .select("id_customers")
       .eq("id_user", userId)
       .single();
 
+
     if (customerError || !customer) {
-      return res.status(404).json({
-        status: "error",
-        message: "Data customer tidak ditemukan",
+      return res.status(200).json({
+        status: "success",
+        data: [], 
       });
     }
 
